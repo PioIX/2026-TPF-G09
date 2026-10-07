@@ -149,7 +149,9 @@ Mostrará los jugadores que están dentro de la partida y permitirá comenzar el
 
 ### Juego
 
-Contará con:
+Contará con estas categorias basado en la tematica argentina:
+Futbol-Lugares-Comidas-Tradiciones(Acciones)
+Cada categoría contara con 200 palabras.
 
 * Tablero de dibujo realizado con **Canvas**.
 * Palabra para el jugador que dibuja.
@@ -165,7 +167,7 @@ Los diseños se realizarán en **Figma o Canva** y mantendrán un estilo similar
 
 
 
-# 6. Resultado esperado
+# Resultado esperado
 
 Esperamos desarrollar una página web funcional en la que varios jugadores puedan jugar una partida de dibujo y adivinanzas.
 
@@ -173,31 +175,9 @@ La idea principal es que sea un juego **simple, fácil de usar y divertido**, co
 
 
 
-# 7. Presupuesto
+#  Presupuesto
 
 
-
-### Distribución sugerida del equipo
-
-
-
-| Integrante | Rol principal | Tareas |
-|---|---|---|
-| Lucio Rosenthal | Frontend / UI | Maquetado de pantallas, estilos, identidad visual |
-| Gabriel Benitez | Backend / Datos | Usuarios, salas y conexión con la base de datos |
-| Santino Ratto | Lógica de juego | Turnos, puntuación y comunicación en tiempo real |
-| Lorenzo Beccaria | Canvas / Diseño | Tablero de dibujo y bocetos en Canva |
-
-### Recursos y herramientas
-
-| Herramienta | Uso 
-|---|---|---|
-| React / Next.js | Framework de frontend 
-| HTML Canvas | Tablero de dibujo 
-| Base de datos (ej. Firebase o Supabase) | Usuarios, salas y puntajes 
-| Servicio de tiempo real  | Sincronizar dibujo y turnos 
-| GitHub | Repositorio y control de versiones 
-| Canva / Figma | Bocetos y diseño visual 
 
 
 

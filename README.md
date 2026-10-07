@@ -188,9 +188,9 @@ La idea principal es que sea un juego **simple, fácil de usar y divertido**, co
 | Santino Ratto | Lógica de juego | Turnos, puntuación y comunicación en tiempo real |
 | Lorenzo Beccaria | Canvas / Diseño | Tablero de dibujo y bocetos en Canva |
 
-### 7.4 Recursos y herramientas
+### Recursos y herramientas
 
-| Herramienta | Uso | Costo |
+| Herramienta | Uso 
 |---|---|---|
 | React / Next.js | Framework de frontend 
 | HTML Canvas | Tablero de dibujo 

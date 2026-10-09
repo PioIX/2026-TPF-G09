@@ -3,6 +3,7 @@
   --foreground: #171717;
 }
 
+<<<<<<< Updated upstream
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -47,3 +48,262 @@ a {
     color-scheme: dark;
   }
 }
+=======
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background-color: #f0f8ff;
+  color: #222;
+}
+
+.navbar {
+  background-color: #75c9ed;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: bold;
+  color: #222;
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  gap: 15px;
+}
+
+.nav-login,
+.nav-register {
+  color: #222;
+  text-decoration: none;
+  padding: 10px;
+}
+
+.nav-register {
+  background-color: white;
+  border-radius: 5px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 60px 30px;
+  gap: 30px;
+}
+
+.hero-content {
+  max-width: 500px;
+}
+
+.tag {
+  color: #1676a5;
+  font-weight: bold;
+}
+
+.hero h1 {
+  font-size: 60px;
+  margin: 20px 0;
+}
+
+.hero h1 span {
+  color: #168dcc;
+}
+
+.description {
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.buttons {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.btn-play,
+.btn-login {
+  padding: 12px 18px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.btn-play {
+  background-color: #168dcc;
+  color: white;
+}
+
+.btn-login {
+  border: 1px solid #168dcc;
+  color: #168dcc;
+}
+
+.features {
+  display: flex;
+  gap: 25px;
+  margin-top: 30px;
+}
+
+.features div {
+  text-align: center;
+}
+
+.features span {
+  font-size: 25px;
+}
+
+.game-preview {
+  background-color: white;
+  border: 2px solid #75c9ed;
+  border-radius: 10px;
+  padding: 20px;
+  width: 350px;
+}
+
+.preview-top {
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.live-dot {
+  color: green;
+}
+
+.round {
+  float: right;
+}
+
+.word-box {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.word-box p {
+  font-size: 12px;
+}
+
+.word {
+  font-size: 25px;
+  color: #168dcc;
+}
+
+.drawing {
+  height: 180px;
+  background-color: #eaf7fc;
+  border: 1px solid #75c9ed;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.sun {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+}
+
+.ball {
+  position: absolute;
+  bottom: 10px;
+  left: 15px;
+}
+
+.flag {
+  position: absolute;
+  top: 10px;
+  left: 15px;
+}
+
+.mountain {
+  font-size: 70px;
+}
+
+.players {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.player {
+  background-color: #eaf7fc;
+  padding: 8px;
+  flex: 1;
+}
+
+.player strong,
+.player small {
+  display: block;
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.fake-chat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #eaf7fc;
+  padding: 10px;
+  margin-top: 15px;
+}
+
+.fake-chat p {
+  flex: 1;
+  font-size: 12px;
+}
+
+.chat-check {
+  color: green;
+}
+
+.footer {
+  border-top: 1px solid #ccc;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+@media (max-width: 750px) {
+  .hero {
+    flex-direction: column;
+    padding: 30px 15px;
+  }
+
+  .hero h1 {
+    font-size: 45px;
+  }
+
+  .game-preview {
+    width: auto;
+    max-width: 350px;
+  }
+
+  .navbar {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+}
+
+.btn-play,
+.btn-login,
+.nav-register {
+  transition: 0.3s;
+}
+
+.btn-play:hover,
+.btn-login:hover,
+.nav-register:hover {
+  background-color: #F6B40E;
+  color: #222;
+}
+
+.nav-login:hover {
+  color: #F6B40E;
+}
+>>>>>>> Stashed changes

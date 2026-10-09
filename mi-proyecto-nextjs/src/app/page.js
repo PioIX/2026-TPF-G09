@@ -1,69 +1,127 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+
+import Link from "next/link";
+import "./globals.css";
 
 export default function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
+    <main className="home">
+      <nav className="navbar">
+        <Link href="/" className="logo">
+          🇦🇷 ARGENTILLO
+        </Link>
+
+        <div className="nav-links">
+          <Link href="/login" className="nav-login">
+            Iniciar sesión
+          </Link>
+          <Link href="/registro" className="nav-register">
+            Registrarse
+          </Link>
+        </div>
+      </nav>
+
+      <section className="hero">
+        <div className="hero-content">
+          <span className="tag">🇦🇷 EL JUEGO MÁS ARGENTO</span>
+
           <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.js</code> file.
+            DIBUJÁ.
+            <br />
+            <span>ADIVINÁ.</span>
+            <br />
+            GANÁ.
           </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="description">
+            Demostrá cuánto sabés dibujar y cuánto conocés
+            a tus amigos. ¿Quién será el campeón del grupo?
           </p>
+
+          <div className="buttons">
+            <Link href="/registro" className="btn-play">
+              ¡JUGAR AHORA! →
+            </Link>
+
+            <Link href="/login" className="btn-login">
+              Ya tengo cuenta
+            </Link>
+          </div>
+
+          <div className="features">
+            <div>
+              <span>🎨</span>
+              <p>Dibujá</p>
+            </div>
+
+            <div>
+              <span>🧠</span>
+              <p>Adiviná</p>
+            </div>
+
+            <div>
+              <span>🏆</span>
+              <p>Competí</p>
+            </div>
+          </div>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="game-preview">
+          <div className="preview-top">
+            <span className="live-dot"></span>
+            SALA DE JUEGO
+            <span className="round">RONDA 3</span>
+          </div>
+
+          <div className="word-box">
+            <p>ADIVINÁ LA PALABRA</p>
+            <div className="word">_ _ _ _ _ _</div>
+          </div>
+
+          <div className="drawing">
+            <span className="sun">☀️</span>
+            <span className="mountain">🏔️</span>
+            <span className="ball">⚽</span>
+            <span className="flag">🇦🇷</span>
+          </div>
+
+          <div className="players">
+            <div className="player">
+              <span>🧉</span>
+              <div>
+                <strong>Matecito</strong>
+                <small>120 puntos</small>
+              </div>
+            </div>
+
+            <div className="player">
+              <span>⚽</span>
+              <div>
+                <strong>El Diegote</strong>
+                <small>90 puntos</small>
+              </div>
+            </div>
+
+            <div className="player">
+              <span>🔥</span>
+              <div>
+                <strong>Vos</strong>
+                <small>70 puntos</small>
+              </div>
+            </div>
+          </div>
+
+          <div className="fake-chat">
+            <span>💬</span>
+            <p>¿ES EL OBELISCO?</p>
+            <span className="chat-check">✓</span>
+          </div>
         </div>
-      </main>
-    </div>
+      </section>
+
+      <footer className="footer">
+        <p>HECHO PARA JUGAR ENTRE AMIGOS 🇦🇷</p>
+        <p>ARGENTILLO © 2026</p>
+      </footer>
+    </main>
   );
 }

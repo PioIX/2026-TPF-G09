@@ -7,7 +7,7 @@
     "pio": "nodemon --env-file=.pio.env index.js",
     "home": "nodemon --env-file=.home.env index.js"
   },
-  "author": "Telmo Pereyra",
+  "author": "Grupo 09",
   "license": "ISC",
   "dependencies": {
     "-": "^0.0.1",

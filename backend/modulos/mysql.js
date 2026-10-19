@@ -5,10 +5,10 @@ const mySql = require("mysql2/promise");
 
 
 	const SQL_CONFIGURATION_DATA = {
-    host: '10.1.4.153', // O 'localhost' si la base de datos está en tu computadora
-    user: '2026-5INF-G09',
+    host: '10.1.5.205', // O 'localhost' si la base de datos está en tu computadora
+    user: '2026_5INF_G09',
     password: 'brbr', // Escribí la contraseña exacta
-    database: '2026-5INF-G09',     // El nombre de tu base de datos
+    database: '2026_5INF_G09',     // El nombre de tu base de datos
     port: 3306,
     charset: 'UTF8_GENERAL_CI'
 };

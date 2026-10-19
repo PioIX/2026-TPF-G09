@@ -1,0 +1,21 @@
+
+
+.boton-crear {
+  background-color: #2454c7;
+}
+
+.boton-unirse {
+  background-color: #16834a;
+}
+
+.sala-error {
+  margin-top: 18px;
+  color: #c62828;
+  font-size: 14px;
+}
+
+@media (max-width: 480px) {
+  .sala-contenedor {
+    padding: 22px;
+  }
+}

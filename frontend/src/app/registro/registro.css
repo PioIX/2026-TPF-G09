@@ -1,68 +1,152 @@
- .registro-container {
-width: 320px;
-margin: 40px auto;
-border: 2px solid #78afe0;
-border-radius: 15px;
-overflow: hidden;
-background-color: white;
-font-family: Arial, sans-serif;
-color: #254c76;
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700;800;900&display=swap');
+
+.registro-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #090d16;
+  font-family: 'Poppins', sans-serif;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
 }
 
-.registro-header {
-background-color: #78afe0;
-text-align: center;
-padding: 20px;
+/* Resplandor dorado de fondo */
+.registro-container::before {
+  content: '';
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  background: #f59e0b;
+  filter: blur(140px);
+  opacity: 0.18;
+  border-radius: 50%;
+  bottom: 15%;
 }
 
-.registro-header h1 {
-margin: 0;
-font-size: 26px;
+.registro-card {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  border: 2px solid #f59e0b;
+  padding: 40px 30px;
+  border-radius: 24px;
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.25);
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.registro-card h1 {
+  font-size: 2.2rem;
+  font-weight: 900;
+  margin: 0 0 8px;
+  background: linear-gradient(180deg, #ffffff 30%, #fde68a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+}
+
+.registro-subtitle {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-bottom: 25px;
 }
 
 .registro-form {
-padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
 }
 
-.registro-form h3 {
-margin-bottom: 5px;
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.registro-form label {
-display: block;
-margin-top: 15px;
-font-size: 14px;
+.input-group label {
+  color: #fbbf24;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .registro-form input {
-width: 100%;
-padding: 10px;
-margin-top: 3px;
-border: 1px solid #9cc9f5;
-border-radius: 6px;
-box-sizing: border-box;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: #ffffff;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s ease;
 }
 
-.registro-form button {
-width: 100%;
-padding: 12px;
-margin-top: 20px;
-background-color: #ffb900;
-border: none;
-border-radius: 8px;
-color: #254c76;
-font-weight: bold;
-cursor: pointer;
+.registro-form input:focus {
+  border-color: #fbbf24;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+  background: rgba(30, 41, 59, 1);
 }
 
-.registro-form p {
-text-align: center;
-font-size: 13px;
-margin-top: 15px;
+.btn-registro-submit {
+  margin-top: 10px;
+  padding: 14px;
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  color: #0f172a;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
 }
 
-.registro-form a {
-color: #287bc1;
-font-weight: bold;
-text-decoration: none;
+.btn-registro-submit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(245, 158, 11, 0.6);
+}
+
+.status-msg {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.status-msg.success {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.status-msg.error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.registro-footer {
+  margin-top: 25px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.registro-footer a {
+  color: #38bdf8;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.registro-footer a:hover {
+  text-decoration: underline;
 }

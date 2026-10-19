@@ -6,6 +6,8 @@ const { realizarQuery } = require('./modulos/mysql');
 var app = express(); //Inicializo express
 var port = process.env.PORT || 4000; //Ejecuto el servidor en el puerto 4000
 
+
+
 // Convierte una petición recibida (POST-GET...) a objeto JSON
 app.use(bodyParser.urlencoded({extended:false}));
 app.use(bodyParser.json());
@@ -160,3 +162,47 @@ app.delete('/jugadores', async function(req,res) {
     `)
     res.send("Jugador eliminado")
 })      
+
+// RUTA DE REGISTRO
+app.post('/registro', async function(req, res) {
+    const { usuario, mail, contraseña } = req.body;
+
+    if (!usuario || !mail || !contraseña) {
+        return res.status(400).send({ message: "Completá todos los campos" });
+    }
+
+    try {
+        let existe = await realizarQuery(`SELECT * FROM Usuarios WHERE mail="${mail}" OR usuario="${usuario}"`);
+        if (existe && existe.length > 0) {
+            return res.status(400).send({ message: "El usuario o mail ya existe" });
+        }
+
+        await realizarQuery(`INSERT INTO Usuario (usuario, mail, contraseña) VALUES ("${usuario}", "${mail}", "${contraseña}")`);
+        res.status(200).send({ message: "Usuario registrado con éxito" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Error en la base de datos" });
+    }
+});
+
+// RUTA DE LOGIN
+app.post('/login', async function(req, res) {
+    const { usuario, clave } = req.body;
+
+    if (!usuario || !clave) {
+        return res.status(400).send({ message: "Ingresá usuario y contraseña" });
+    }
+
+    try {
+        let resultado = await realizarQuery(`SELECT * FROM Usuarios WHERE usuario="${usuario}" AND contraseña="${clave}"`);
+
+        if (resultado && resultado.length > 0) {
+            res.status(200).send({ message: "Login correcto", usuario: resultado[0].usuario });
+        } else {
+            res.status(401).send({ message: "Usuario o contraseña incorrectos" });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Error en la base de datos" });
+    }
+});

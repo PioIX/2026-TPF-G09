@@ -6,8 +6,8 @@ import "./registro.css";
 
 export default function Registro() {
   const [usuario, setUsuario] = useState("");
-  const [email, setEmail] = useState("");
-  const [contrasena, setContrasena] = useState("");
+  const [mail, setmail] = useState("");
+  const [contraseña, setcontraseña] = useState("");
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
 
   async function handleSubmit(event) {
@@ -18,7 +18,7 @@ export default function Registro() {
       const response = await fetch("http://localhost:4000/registro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuario, email, contrasena }),
+        body: JSON.stringify({ usuario, mail, contraseña }),
       });
 
       const data = await response.json();
@@ -56,31 +56,31 @@ export default function Registro() {
           </div>
 
           <div className="input-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="mail">mail</label>
             <input
-              type="email"
-              id="email"
-              placeholder="tu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="mail"
+              id="mail"
+              placeholder="tu@mail.com"
+              value={mail}
+              onChange={(e) => setmail(e.target.value)}
               required
             />
           </div>
 
           <div className="input-group">
-            <label htmlFor="contrasena">Contraseña</label>
+            <label htmlFor="contraseña">Contraseña</label>
             <input
               type="password"
-              id="contrasena"
+              id="contraseña"
               placeholder="••••••••"
-              value={contrasena}
-              onChange={(e) => setContrasena(e.target.value)}
+              value={contraseña}
+              onChange={(e) => setcontraseña(e.target.value)}
               required
             />
           </div>
 
           <button type="submit" className="btn-registro-submit">
-            🔥 FIRMAR CONTRATO
+             FIRMAR CONTRATO
           </button>
         </form>
 

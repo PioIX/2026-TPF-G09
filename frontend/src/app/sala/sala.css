@@ -3,92 +3,68 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: linear-gradient(135deg, #eaf0ff 0%, #f4fbf7 100%);
-  font-family: system-ui, -apple-system, sans-serif;
+  padding: 20px;
+  font-family: Arial, sans-serif;
 }
 
 .sala-contenedor {
-  width: 100%;
-  max-width: 460px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  width: 320px;
+  border: 2px solid #78afe0;
+  border-radius: 15px;
+  overflow: hidden;
+  background-color: white;
+  color: #254c76;
   text-align: center;
 }
 
 .sala-contenedor h1 {
   margin: 0;
-  font-size: 42px;
-  letter-spacing: 4px;
-  color: #1b2a49;
+  padding: 20px;
+  font-size: 26px;
+  background-color: #78afe0;
 }
 
 .sala-subtitulo {
   margin: 0;
-  color: #5b6475;
+  padding: 16px 16px 0;
+  font-size: 14px;
 }
 
 .sala-tarjeta {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px;
-  background: #fff;
-  border: 1px solid #e3e7ef;
-  border-radius: 14px;
-  box-shadow: 0 4px 14px rgba(27, 42, 73, 0.08);
+  padding: 20px 16px;
+}
+
+.sala-tarjeta + .sala-tarjeta {
+  border-top: 1px solid #9cc9f5;
 }
 
 .sala-tarjeta h2 {
-  margin: 0;
-  font-size: 22px;
-  color: #1b2a49;
+  margin: 0 0 5px;
+  font-size: 18px;
 }
 
 .sala-tarjeta p {
   margin: 0;
-  color: #5b6475;
-}
-
-.sala-tarjeta form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  font-size: 13px;
 }
 
 .sala-tarjeta input {
-  padding: 11px 14px;
-  font-size: 16px;
-  text-align: center;
-  border: 1px solid #ccd3e0;
-  border-radius: 8px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.sala-tarjeta input:focus {
-  outline: none;
-  border-color: #2454c7;
-  box-shadow: 0 0 0 3px rgba(36, 84, 199, 0.15);
+  width: 100%;
+  padding: 10px;
+  margin-top: 12px;
+  border: 1px solid #9cc9f5;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 
 .boton {
-  padding: 11px 18px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+  width: 100%;
+  padding: 12px;
+  margin-top: 15px;
   border: none;
   border-radius: 8px;
+  font-weight: bold;
   cursor: pointer;
-  transition: filter 0.2s, transform 0.1s;
-}
-
-.boton:hover:not(:disabled) {
-  filter: brightness(1.1);
-}
-
-.boton:active:not(:disabled) {
-  transform: scale(0.98);
 }
 
 .boton:disabled {
@@ -97,37 +73,19 @@
 }
 
 .boton-crear {
-  background-color: #2454c7;
+  background-color: #ffb900;
+  color: #254c76;
 }
 
 .boton-unirse {
-  background-color: #16834a;
+  background-color: #287bc1;
+  color: white;
 }
 
 .sala-error {
   margin: 0;
-  padding: 10px 14px;
-  font-size: 14px;
+  padding: 12px 16px;
+  font-size: 13px;
   color: #c62828;
-  background: #fdecec;
-  border: 1px solid #f5c2c2;
-  border-radius: 8px;
-}
-
-@media (max-width: 480px) {
-  .sala-fondo {
-    padding: 16px;
-  }
-
-  .sala-contenedor {
-    padding: 0;
-  }
-
-  .sala-contenedor h1 {
-    font-size: 34px;
-  }
-
-  .sala-tarjeta {
-    padding: 22px;
-  }
+  background-color: #fdecec;
 }

@@ -89,3 +89,13 @@
   color: #c62828;
   background-color: #fdecec;
 }
+
+  .sala-fondo {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #063361;
+}

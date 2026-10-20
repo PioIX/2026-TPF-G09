@@ -6,10 +6,10 @@ import "./registro.css";
 
 export default function Registro() {
   const [usuario, setUsuario] = useState("");
-  const [mail, setmail] = useState("");
-  const [contraseña, setcontraseña] = useState("");
+  const [email, setEmail] = useState(""); // 👈 FALTABA DECLARAR ESTA LÍNEA
+  const [contrasena, setContrasena] = useState("");
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
-  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setMensaje({ texto: "", tipo: "" });
@@ -18,28 +18,28 @@ export default function Registro() {
       const response = await fetch("http://localhost:4000/registro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuario, mail, contraseña }),
+        body: JSON.stringify({ usuario, email, contrasena }),
       });
 
       const data = await response.json();
 
-      if (response.ok) {
-        setMensaje({ texto: " ¡Perfil de artista creado! Redirigiendo...", tipo: "success" });
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 1500);
-      } else {
-        setMensaje({ texto: data.message || "Error al registrarse", tipo: "error" });
-      }
-    } catch (error) {
-      setMensaje({ texto: "No se pudo conectar con el servidor backend", tipo: "error" });
-    }
-  }
+      if (response.ok) {
+        setMensaje({ texto: "🎉 ¡Perfil de artista creado! Redirigiendo...", tipo: "success" });
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 1500);
+      } else {
+        setMensaje({ texto: data.message || "Error al registrarse", tipo: "error" });
+      }
+    } catch (error) {
+      setMensaje({ texto: "No se pudo conectar con el servidor backend", tipo: "error" });
+    }
+  }
 
-return (
+  return (
     <main className="registro-container">
       <div className="registro-card">
-        <h1> NUEVO ARTISTA</h1>
+        <h1>👑 NUEVO ARTISTA</h1>
         <p className="registro-subtitle">Sumate al taller de Argentillo</p>
 
         <form className="registro-form" onSubmit={handleSubmit}>
@@ -80,7 +80,7 @@ return (
           </div>
 
           <button type="submit" className="btn-registro-submit">
-             PREPARAR EL LIENZO
+            🎨 PREPARAR EL LIENZO
           </button>
         </form>
 
@@ -94,3 +94,4 @@ return (
       </div>
     </main>
   );
+}

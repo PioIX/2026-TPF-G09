@@ -3,8 +3,16 @@
 import { useEffect } from "react";
 import { io } from "socket.io-client";
 
-// Instancia única para evitar conexiones múltiples
-export const socket = io("http://localhost:4000", {
+// Detecta la IP del host automáticamente para permitir conexiones en red local
+const getBackendUrl = () => {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    return `http://${hostname}:4000`;
+  }
+  return "http://localhost:4000";
+};
+
+export const socket = io(getBackendUrl(), {
   autoConnect: false,
 });
 

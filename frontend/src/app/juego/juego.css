@@ -1,0 +1,235 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap');
+
+.juego-main {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #38bdf8 0%, #0284c7 40%, #0f172a 100%);
+  font-family: 'Fredoka', sans-serif;
+  color: #1e293b;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.juego-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.juego-header h1 {
+  color: #ffffff;
+  font-size: 2.2rem;
+  margin: 0;
+  text-shadow: 2px 2px 0px #0284c7;
+}
+
+.badge-sala {
+  background: #fbbf24;
+  color: #0f172a;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 12px;
+  border: 2px solid #d97706;
+  box-shadow: 0 3px 0px #d97706;
+}
+
+/* ESPERA Y FINAL */
+.card-espera, .card-final {
+  background: #ffffff;
+  border: 4px solid #38bdf8;
+  border-radius: 24px;
+  padding: 30px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 8px 0px #0284c7, 0 15px 25px rgba(0, 0, 0, 0.3);
+}
+
+.grid-categorias {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.btn-categoria {
+  padding: 12px;
+  background: #fbbf24;
+  color: #0f172a;
+  border: 3px solid #d97706;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 0px #d97706;
+  transition: all 0.1s ease;
+}
+
+.btn-categoria:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0px #d97706;
+}
+
+.btn-categoria:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0px #d97706;
+}
+
+/* LAYOUT JUEGO EN VIVO */
+.juego-layout {
+  display: flex;
+  gap: 20px;
+  max-width: 900px;
+  width: 100%;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+/* PANEL CANVAS */
+.panel-canvas {
+  background: #ffffff;
+  border: 4px solid #38bdf8;
+  border-radius: 20px;
+  padding: 15px;
+  box-shadow: 0 8px 0px #0284c7, 0 15px 25px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.canvas-topbar {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.timer-badge {
+  background: #ef4444;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.turno-badge {
+  background: #0284c7;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.palabra-box {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #d97706;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.lienzo-pinturillo {
+  background: #ffffff;
+  border: 3px solid #cbd5e1;
+  border-radius: 12px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.btn-borrar {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 2px solid #fca5a5;
+  border-radius: 10px;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+}
+
+/* PANEL LATERAL */
+.panel-lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 300px;
+}
+
+.card-puntos, .card-chat {
+  background: #ffffff;
+  border: 4px solid #38bdf8;
+  border-radius: 18px;
+  padding: 15px;
+  box-shadow: 0 6px 0px #0284c7;
+}
+
+.card-puntos h4 {
+  margin: 0 0 10px;
+  color: #0284c7;
+  font-size: 1.1rem;
+}
+
+.jugador-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px dashed #cbd5e1;
+  font-weight: 600;
+}
+
+.chat-box {
+  height: 180px;
+  overflow-y: auto;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chat-msg {
+  margin: 0;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.chat-msg.alerta {
+  color: #d97706;
+  font-weight: 700;
+}
+
+.chat-msg.exito {
+  color: #166534;
+  font-weight: 700;
+  background: #dcfce7;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.form-chat {
+  display: flex;
+  gap: 6px;
+}
+
+.input-chat {
+  flex: 1;
+}
+
+.btn-enviar {
+  padding: 8px 12px;
+  background: #38bdf8;
+  color: white;
+  border: 2px solid #0284c7;
+  border-radius: 10px;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+}

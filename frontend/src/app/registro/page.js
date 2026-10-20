@@ -9,7 +9,7 @@ export default function Registro() {
   const [mail, setmail] = useState("");
   const [contraseña, setcontraseña] = useState("");
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
-
+  }
   async function handleSubmit(event) {
     event.preventDefault();
     setMensaje({ texto: "", tipo: "" });
@@ -23,24 +23,24 @@ export default function Registro() {
 
       const data = await response.json();
 
-      if (response.ok) {
-        setMensaje({ texto: "🎉 ¡Fichaje completado! Redirigiendo...", tipo: "success" });
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 1500);
-      } else {
-        setMensaje({ texto: data.message || "Error al registrarse", tipo: "error" });
-      }
-    } catch (error) {
-      setMensaje({ texto: "No se pudo conectar con el servidor backend", tipo: "error" });
-    }
-  }
+      if (response.ok) {
+        setMensaje({ texto: " ¡Perfil de artista creado! Redirigiendo...", tipo: "success" });
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 1500);
+      } else {
+        setMensaje({ texto: data.message || "Error al registrarse", tipo: "error" });
+      }
+    } catch (error) {
+      setMensaje({ texto: "No se pudo conectar con el servidor backend", tipo: "error" });
+    }
+  }
 
-  return (
+return (
     <main className="registro-container">
       <div className="registro-card">
-        <h1>👑 FICHAJE NUEVO</h1>
-        <p className="registro-subtitle">Sumate al plantel de Argentillo</p>
+        <h1> NUEVO ARTISTA</h1>
+        <p className="registro-subtitle">Sumate al taller de Argentillo</p>
 
         <form className="registro-form" onSubmit={handleSubmit}>
           <div className="input-group">
@@ -48,7 +48,7 @@ export default function Registro() {
             <input
               type="text"
               id="usuario"
-              placeholder="Ej: ElDiez99"
+              placeholder="Ej: Picassito"
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
               required
@@ -56,31 +56,31 @@ export default function Registro() {
           </div>
 
           <div className="input-group">
-            <label htmlFor="mail">mail</label>
+            <label htmlFor="email">Email</label>
             <input
-              type="mail"
-              id="mail"
-              placeholder="tu@mail.com"
-              value={mail}
-              onChange={(e) => setmail(e.target.value)}
+              type="email"
+              id="email"
+              placeholder="tu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
 
           <div className="input-group">
-            <label htmlFor="contraseña">Contraseña</label>
+            <label htmlFor="contrasena">Contraseña</label>
             <input
               type="password"
-              id="contraseña"
+              id="contrasena"
               placeholder="••••••••"
-              value={contraseña}
-              onChange={(e) => setcontraseña(e.target.value)}
+              value={contrasena}
+              onChange={(e) => setContrasena(e.target.value)}
               required
             />
           </div>
 
           <button type="submit" className="btn-registro-submit">
-             FIRMAR CONTRATO
+             PREPARAR EL LIENZO
           </button>
         </form>
 
@@ -89,9 +89,8 @@ export default function Registro() {
         )}
 
         <p className="registro-footer">
-          ¿Ya sos parte del club? <Link href="/login">Ingresá acá</Link>
+          ¿Ya sos parte del taller? <Link href="/login">Ingresá acá</Link>
         </p>
       </div>
     </main>
   );
-}

@@ -1,70 +1,101 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSocket } from "@/hooks/useSocket";
 import "./sala.css";
 
 export default function Sala() {
-  const [codigoSala, setCodigoSala] = useState("");
+  const socket = useSocket();
+
+  const [modalCrear, setModalCrear] = useState(false);
+  const [nombreUsuario, setNombreUsuario] = useState("");
+  const [codigoIngresado, setCodigoIngresado] = useState("");
   const [error, setError] = useState("");
 
-  // Crear una nueva sala con código aleatorio
-  const handleCrearSala = () => {
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("sala_creada", ({ codigoSala }) => {
+      window.location.href = `/juego?sala=${codigoSala}&usuario=${encodeURIComponent(nombreUsuario)}`;
+    });
+
+    socket.on("sala_unida", ({ codigoSala }) => {
+      window.location.href = `/juego?sala=${codigoSala}&usuario=${encodeURIComponent(nombreUsuario)}`;
+    });
+
+    socket.on("error_sala", (mensaje) => {
+      setError(mensaje);
+    });
+
+    return () => {
+      socket.off("sala_creada");
+      socket.off("sala_unida");
+      socket.off("error_sala");
+    };
+  }, [socket, nombreUsuario]);
+
+  const handleCrearSala = (e) => {
+    e.preventDefault();
+    if (!nombreUsuario.trim()) return setError("Ingresá tu apodo de artista");
     setError("");
-    // Genera un código de 6 caracteres (Ej: A3X9P2)
-    const codigoNuevo = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
-    // Redirige a la pantalla del juego pasando el código de sala por URL
-    window.location.href = `/juego?sala=${codigoNuevo}`;
+
+    socket.emit("crear_sala", { usuario: nombreUsuario });
   };
 
-  // Unirse a una sala existente mediante código
   const handleUnirseSala = (e) => {
     e.preventDefault();
+    if (!nombreUsuario.trim()) return setError("Ingresá tu apodo de artista");
+    if (!codigoIngresado.trim()) return setError("Ingresá un código de sala");
     setError("");
 
-    if (!codigoSala.trim()) {
-      setError("Ingresá un código de sala válido");
-      return;
-    }
-
-    const codigoLimpio = codigoSala.toUpperCase().trim();
-    window.location.href = `/juego?sala=${codigoLimpio}`;
+    socket.emit("unirse_sala", {
+      codigoSala: codigoIngresado,
+      usuario: nombreUsuario,
+    });
   };
 
   return (
     <main className="sala-container">
       <div className="sala-card">
         <h1>🎮 SALA DE JUEGO</h1>
-        <p className="sala-subtitle">Elegí una opción para empezar la partida de Argentillo</p>
+        <p className="sala-subtitle">Ingresá tu apodo para continuar</p>
+
+        <div className="input-group" style={{ marginBottom: "20px" }}>
+          <label>Tu Apodo</label>
+          <input
+            type="text"
+            placeholder="Ej: Picassito"
+            value={nombreUsuario}
+            onChange={(e) => setNombreUsuario(e.target.value)}
+            style={{ textTransform: "none", textAlign: "center" }}
+            required
+          />
+        </div>
 
         <div className="opciones-container">
-          {/* Opción 1: Crear Sala */}
           <div className="opcion-box">
             <h2>👑 SER ANFITRIÓN</h2>
-            <p>Armá una sala nueva e invitá a tus amigos a jugar.</p>
-            <button onClick={handleCrearSala} className="btn-crear">
-              🔥 CREAR SALA
+            <button onClick={() => setModalCrear(true)} className="btn-crear">
+              🔥 CREAR SALA NUEVA
             </button>
           </div>
 
           <div className="divider">— O —</div>
 
-          {/* Opción 2: Unirse a Sala */}
           <div className="opcion-box">
             <h2>⚽ SUMARTE A UNA SALA</h2>
-            <p>Ingresá el código de la sala de tu amigo:</p>
             <form onSubmit={handleUnirseSala} className="unirse-form">
               <input
                 type="text"
-                placeholder="CÓDIGO (Ej: X7K9P2)"
-                value={codigoSala}
-                onChange={(e) => setCodigoSala(e.target.value)}
+                placeholder="CÓDIGO (Ej: A3X9P2)"
+                value={codigoIngresado}
+                onChange={(e) => setCodigoIngresado(e.target.value)}
                 maxLength={8}
                 required
               />
               <button type="submit" className="btn-unirse">
-                🚀 UNIRME A LA SALA
+                🚀 UNIRME
               </button>
             </form>
           </div>
@@ -76,6 +107,25 @@ export default function Sala() {
           <Link href="/">⬅️ Volver al Inicio</Link>
         </div>
       </div>
+
+      {modalCrear && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>🎨 CREAR SALA</h2>
+            <p style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
+              ¿Listo para ser el anfitrión con el apodo <strong>{nombreUsuario || "Anónimo"}</strong>?
+            </p>
+            <div className="modal-actions">
+              <button onClick={handleCrearSala} className="btn-confirmar">
+                ✅ INGRESAR A LA SALA
+              </button>
+              <button onClick={() => setModalCrear(false)} className="btn-cancelar">
+                ❌ CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

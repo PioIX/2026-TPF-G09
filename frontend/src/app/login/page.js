@@ -35,12 +35,12 @@ export default function Login() {
   return (
     <main className="login-container">
       <div className="login-card">
-        <h1>🔐 ENTRENÁ, CRACK</h1>
-        <p className="login-subtitle">Ingresá tu cuenta para jugar a Argentillo</p>
+        <h1>SACÁ EL PINCEL</h1>
+        <p className="login-subtitle">Ingresá a tu cuenta para pintar en Argentillo</p>
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="input-group">
-            <label>Usuario</label>
+            <label>Tu apodo de artista</label>
             <input
               type="text"
               placeholder="Tu apodo guerrero"
@@ -62,7 +62,7 @@ export default function Login() {
           </div>
 
           <button type="submit" className="btn-submit">
-            ⚽ ENTRAR A LA CANCHA
+            AGARRAR EL PINCEL
           </button>
         </form>
 

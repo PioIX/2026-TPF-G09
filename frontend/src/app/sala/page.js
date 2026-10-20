@@ -1,132 +1,131 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useSocket } from "@/hooks/useSocket";
 import "./sala.css";
 
-export default function SalaPage() {
-  const router = useRouter();
-  const [codigo, setCodigo] = useState("");
+export default function Sala() {
+  const socket = useSocket();
+
+  const [modalCrear, setModalCrear] = useState(false);
+  const [nombreUsuario, setNombreUsuario] = useState("");
+  const [codigoIngresado, setCodigoIngresado] = useState("");
   const [error, setError] = useState("");
-  const [cargando, setCargando] = useState(false);
 
-  async function crearSala() {
-    setError("");
-    setCargando(true);
+  useEffect(() => {
+    if (!socket) return;
 
-    try {
-      const respuesta = await fetch("http://localhost:3001/salas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
-      });
+    socket.on("sala_creada", ({ codigoSala }) => {
+      window.location.href = `/juego?sala=${codigoSala}&usuario=${encodeURIComponent(nombreUsuario)}`;
+    });
 
-      const datos = await respuesta.json();
+    socket.on("sala_unida", ({ codigoSala }) => {
+      window.location.href = `/juego?sala=${codigoSala}&usuario=${encodeURIComponent(nombreUsuario)}`;
+    });
 
-      if (!respuesta.ok) {
-        throw new Error(datos.mensaje || "No se pudo crear la sala");
-      }
+    socket.on("error_sala", (mensaje) => {
+      setError(mensaje);
+    });
 
-      const codigoSala = datos.codigo || datos.codigoSala;
+    return () => {
+      socket.off("sala_creada");
+      socket.off("sala_unida");
+      socket.off("error_sala");
+    };
+  }, [socket, nombreUsuario]);
 
-      if (!codigoSala) {
-        throw new Error("El servidor no devolvió el código de la sala");
-      }
-
-      router.push(`/espera?codigo=${encodeURIComponent(codigoSala)}`);
-    } catch (error) {
-      setError(error.message || "Error al conectar con el servidor");
-    } finally {
-      setCargando(false);
-    }
-  }
-
-  async function unirseSala(evento) {
-    evento.preventDefault();
+  const handleCrearSala = (e) => {
+    e.preventDefault();
+    if (!nombreUsuario.trim()) return setError("Ingresá tu apodo de artista");
     setError("");
 
-    if (!codigo.trim()) {
-      setError("Ingresá el código de la sala");
-      return;
-    }
+    socket.emit("crear_sala", { usuario: nombreUsuario });
+  };
 
-    setCargando(true);
+  const handleUnirseSala = (e) => {
+    e.preventDefault();
+    if (!nombreUsuario.trim()) return setError("Ingresá tu apodo de artista");
+    if (!codigoIngresado.trim()) return setError("Ingresá un código de sala");
+    setError("");
 
-    try {
-      const respuesta = await fetch(
-        `http://localhost:3001/salas/${encodeURIComponent(codigo.trim())}/unirse`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      const datos = await respuesta.json();
-
-      if (!respuesta.ok) {
-        throw new Error(datos.mensaje || "No se pudo ingresar a la sala");
-      }
-
-      router.push(
-        `/espera?codigo=${encodeURIComponent(codigo.trim())}`
-      );
-    } catch (error) {
-      setError(error.message || "Error al conectar con el servidor");
-    } finally {
-      setCargando(false);
-    }
-  }
+    socket.emit("unirse_sala", {
+      codigoSala: codigoIngresado,
+      usuario: nombreUsuario,
+    });
+  };
 
   return (
-    <main className="sala-fondo">
-      <section className="sala-contenedor">
-        <h1>ARGENTILLO</h1>
-        <p className="sala-subtitulo">
-          ¡Prepará la partida y jugá con tus amigos!
-        </p>
+    <main className="sala-container">
+      <div className="sala-card">
+        <h1>🎮 SALA DE JUEGO</h1>
+        <p className="sala-subtitle">Ingresá tu apodo para continuar</p>
 
-        <div className="sala-tarjeta">
-          <h2>Crear una sala</h2>
-          <p>Creá una partida nueva para invitar a otros jugadores.</p>
-
-          <button
-            className="boton boton-crear"
-            onClick={crearSala}
-            disabled={cargando}
-          >
-            {cargando ? "Procesando..." : "Crear sala"}
-          </button>
+        <div className="input-group" style={{ marginBottom: "20px" }}>
+          <label>Tu Apodo</label>
+          <input
+            type="text"
+            placeholder="Ej: Picassito"
+            value={nombreUsuario}
+            onChange={(e) => setNombreUsuario(e.target.value)}
+            style={{ textTransform: "none", textAlign: "center" }}
+            required
+          />
         </div>
 
-        <div className="sala-tarjeta">
-          <h2>Unirse a una sala</h2>
-          <p>¿Ya tenés un código? Ingresalo acá.</p>
-
-          <form onSubmit={unirseSala}>
-            <input
-              type="text"
-              placeholder="Código de la sala"
-              value={codigo}
-              onChange={(evento) => setCodigo(evento.target.value)}
-            />
-
-            <button
-              className="boton boton-unirse"
-              type="submit"
-              disabled={cargando}
-            >
-              {cargando ? "Procesando..." : "Unirse"}
+        <div className="opciones-container">
+          <div className="opcion-box">
+            <h2>👑 SER ANFITRIÓN</h2>
+            <button onClick={() => setModalCrear(true)} className="btn-crear">
+              🔥 CREAR SALA NUEVA
             </button>
-          </form>
+          </div>
+
+          <div className="divider">— O —</div>
+
+          <div className="opcion-box">
+            <h2>⚽ SUMARTE A UNA SALA</h2>
+            <form onSubmit={handleUnirseSala} className="unirse-form">
+              <input
+                type="text"
+                placeholder="CÓDIGO (Ej: A3X9P2)"
+                value={codigoIngresado}
+                onChange={(e) => setCodigoIngresado(e.target.value)}
+                maxLength={8}
+                required
+              />
+              <button type="submit" className="btn-unirse">
+                🚀 UNIRME
+              </button>
+            </form>
+          </div>
         </div>
 
-        {error && <p className="sala-error">{error}</p>}
-      </section>
+        {error && <p className="error-msg">{error}</p>}
+
+        <div className="sala-footer">
+          <Link href="/">⬅️ Volver al Inicio</Link>
+        </div>
+      </div>
+
+      {modalCrear && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>🎨 CREAR SALA</h2>
+            <p style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
+              ¿Listo para ser el anfitrión con el apodo <strong>{nombreUsuario || "Anónimo"}</strong>?
+            </p>
+            <div className="modal-actions">
+              <button onClick={handleCrearSala} className="btn-confirmar">
+                ✅ INGRESAR A LA SALA
+              </button>
+              <button onClick={() => setModalCrear(false)} className="btn-cancelar">
+                ❌ CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

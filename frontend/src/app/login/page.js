@@ -1,43 +1,77 @@
-```jsx
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import "./login.css";
 
 export default function Login() {
-  function handleSubmit(event) {
-    event.preventDefault();
-    alert("El inicio de sesión todavía no está conectado a la base de datos.");
-  }
+  const [usuario, setUsuario] = useState("");
+  const [clave, setClave] = useState("");
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const res = await fetch("http://localhost:4000/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario, clave }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        window.location.href = "/sala";
+      } else {
+        setError(data.message || "Usuario o clave incorrectos");
+      }
+    } catch (err) {
+      setError("No se pudo conectar con el servidor backend");
+    }
+  };
 
   return (
-    <div className="login-container">
-      <h1>Pinturillo</h1>
+    <main className="login-container">
+      <div className="login-card">
+        <h1>SACÁ EL PINCEL</h1>
+        <p className="login-subtitle">Ingresá a tu cuenta para pintar en Argentillo</p>
 
-      <form className="login-form" onSubmit={handleSubmit}>
-        <h3>Iniciar sesión</h3>
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="input-group">
+            <label>Tu apodo de artista</label>
+            <input
+              type="text"
+              placeholder="Tu apodo guerrero"
+              value={usuario}
+              onChange={(e) => setUsuario(e.target.value)}
+              required
+            />
+          </div>
 
-        <label htmlFor="usuario">Usuario</label>
-        <input
-          type="text"
-          id="usuario"
-          required
-        />
+          <div className="input-group">
+            <label>Contraseña</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={clave}
+              onChange={(e) => setClave(e.target.value)}
+              required
+            />
+          </div>
 
-        <label htmlFor="contrasena">Contraseña</label>
-        <input
-          type="password"
-          id="contrasena"
-          required
-        />
+          <button type="submit" className="btn-submit">
+            AGARRAR EL PINCEL
+          </button>
+        </form>
 
-        <button type="submit">Entrar</button>
+        {error && <p className="error-msg">{error}</p>}
 
-        <p>
-          ¿No tenés cuenta? <Link href="/registro">Registrate</Link>
+        <p className="login-footer">
+          ¿Todavía no tenés cuenta? <Link href="/registro">Registrate acá</Link>
         </p>
-      </form>
-    </div>
+      </div>
+    </main>
   );
 }
-```

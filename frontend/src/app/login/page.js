@@ -23,7 +23,7 @@ export default function Login() {
       const data = await res.json();
 
       if (res.ok) {
-        window.location.href = "/";
+        window.location.href = "/sala";
       } else {
         setError(data.message || "Usuario o clave incorrectos");
       }

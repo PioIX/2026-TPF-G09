@@ -1,132 +1,81 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import "./sala.css";
 
-export default function SalaPage() {
-  const router = useRouter();
-  const [codigo, setCodigo] = useState("");
+export default function Sala() {
+  const [codigoSala, setCodigoSala] = useState("");
   const [error, setError] = useState("");
-  const [cargando, setCargando] = useState(false);
 
-  async function crearSala() {
+  // Crear una nueva sala con código aleatorio
+  const handleCrearSala = () => {
     setError("");
-    setCargando(true);
+    // Genera un código de 6 caracteres (Ej: A3X9P2)
+    const codigoNuevo = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
+    // Redirige a la pantalla del juego pasando el código de sala por URL
+    window.location.href = `/juego?sala=${codigoNuevo}`;
+  };
 
-    try {
-      const respuesta = await fetch("http://localhost:3001/salas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
-      });
-
-      const datos = await respuesta.json();
-
-      if (!respuesta.ok) {
-        throw new Error(datos.mensaje || "No se pudo crear la sala");
-      }
-
-      const codigoSala = datos.codigo || datos.codigoSala;
-
-      if (!codigoSala) {
-        throw new Error("El servidor no devolvió el código de la sala");
-      }
-
-      router.push(`/espera?codigo=${encodeURIComponent(codigoSala)}`);
-    } catch (error) {
-      setError(error.message || "Error al conectar con el servidor");
-    } finally {
-      setCargando(false);
-    }
-  }
-
-  async function unirseSala(evento) {
-    evento.preventDefault();
+  // Unirse a una sala existente mediante código
+  const handleUnirseSala = (e) => {
+    e.preventDefault();
     setError("");
 
-    if (!codigo.trim()) {
-      setError("Ingresá el código de la sala");
+    if (!codigoSala.trim()) {
+      setError("Ingresá un código de sala válido");
       return;
     }
 
-    setCargando(true);
-
-    try {
-      const respuesta = await fetch(
-        `http://localhost:3001/salas/${encodeURIComponent(codigo.trim())}/unirse`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}),
-        }
-      );
-
-      const datos = await respuesta.json();
-
-      if (!respuesta.ok) {
-        throw new Error(datos.mensaje || "No se pudo ingresar a la sala");
-      }
-
-      router.push(
-        `/espera?codigo=${encodeURIComponent(codigo.trim())}`
-      );
-    } catch (error) {
-      setError(error.message || "Error al conectar con el servidor");
-    } finally {
-      setCargando(false);
-    }
-  }
+    const codigoLimpio = codigoSala.toUpperCase().trim();
+    window.location.href = `/juego?sala=${codigoLimpio}`;
+  };
 
   return (
-    <main className="sala-fondo">
-      <section className="sala-contenedor">
-        <h1>ARGENTILLO</h1>
-        <p className="sala-subtitulo">
-          ¡Prepará la partida y jugá con tus amigos!
-        </p>
+    <main className="sala-container">
+      <div className="sala-card">
+        <h1>🎮 SALA DE JUEGO</h1>
+        <p className="sala-subtitle">Elegí una opción para empezar la partida de Argentillo</p>
 
-        <div className="sala-tarjeta">
-          <h2>Crear una sala</h2>
-          <p>Creá una partida nueva para invitar a otros jugadores.</p>
-
-          <button
-            className="boton boton-crear"
-            onClick={crearSala}
-            disabled={cargando}
-          >
-            {cargando ? "Procesando..." : "Crear sala"}
-          </button>
-        </div>
-
-        <div className="sala-tarjeta">
-          <h2>Unirse a una sala</h2>
-          <p>¿Ya tenés un código? Ingresalo acá.</p>
-
-          <form onSubmit={unirseSala}>
-            <input
-              type="text"
-              placeholder="Código de la sala"
-              value={codigo}
-              onChange={(evento) => setCodigo(evento.target.value)}
-            />
-
-            <button
-              className="boton boton-unirse"
-              type="submit"
-              disabled={cargando}
-            >
-              {cargando ? "Procesando..." : "Unirse"}
+        <div className="opciones-container">
+          {/* Opción 1: Crear Sala */}
+          <div className="opcion-box">
+            <h2>👑 SER ANFITRIÓN</h2>
+            <p>Armá una sala nueva e invitá a tus amigos a jugar.</p>
+            <button onClick={handleCrearSala} className="btn-crear">
+              🔥 CREAR SALA
             </button>
-          </form>
+          </div>
+
+          <div className="divider">— O —</div>
+
+          {/* Opción 2: Unirse a Sala */}
+          <div className="opcion-box">
+            <h2>⚽ SUMARTE A UNA SALA</h2>
+            <p>Ingresá el código de la sala de tu amigo:</p>
+            <form onSubmit={handleUnirseSala} className="unirse-form">
+              <input
+                type="text"
+                placeholder="CÓDIGO (Ej: X7K9P2)"
+                value={codigoSala}
+                onChange={(e) => setCodigoSala(e.target.value)}
+                maxLength={8}
+                required
+              />
+              <button type="submit" className="btn-unirse">
+                🚀 UNIRME A LA SALA
+              </button>
+            </form>
+          </div>
         </div>
 
-        {error && <p className="sala-error">{error}</p>}
-      </section>
+        {error && <p className="error-msg">{error}</p>}
+
+        <div className="sala-footer">
+          <Link href="/">⬅️ Volver al Inicio</Link>
+        </div>
+      </div>
     </main>
   );
 }

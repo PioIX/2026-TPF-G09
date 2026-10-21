@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import  useSocket  from "@/hooks/useSocket";
+import { useRouter } from "next/navigation";
+import useSocket from "@/hooks/useSocket";
+import Input from "@/components/Input";
+import Boton from "@/components/Boton";
+import Badge from "@/components/Badge";
+import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./juego.css";
 
 const CATEGORIAS = ["Fútbol", "Lugares", "Comidas", "Tradiciones"];
 
 export default function Juego() {
-  const socket = useSocket();
+  const router = useRouter();
+  const { socket } = useSocket();
 
   // Estados de sala
   const [codigoSala, setCodigoSala] = useState("");
@@ -17,7 +23,6 @@ export default function Juego() {
 
   // Estados de partida
   const [estadoJuego, setEstadoJuego] = useState("esperando"); // 'esperando' | 'jugando' | 'finalizado'
-  const [categoria, setCategoria] = useState("");
   const [esDibujante, setEsDibujante] = useState(false);
   const [palabraSecreta, setPalabraSecreta] = useState("");
   const [tiempo, setTiempo] = useState(100);
@@ -27,7 +32,7 @@ export default function Juego() {
   const [intento, setIntento] = useState("");
   const [chat, setChat] = useState([]);
 
-  // Canvas
+  // Canvas y Trazo
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [prevPos, setPrevPos] = useState({ x: 0, y: 0 });
@@ -65,17 +70,9 @@ export default function Juego() {
         ]);
       });
 
-      socket.on("timer_tick", ({ tiempo }) => {
-        setTiempo(tiempo);
-      });
-
-      socket.on("recibir_trazo", ({ x0, y0, x1, y1 }) => {
-        dibujarEnCanvas(x0, y0, x1, y1);
-      });
-
-      socket.on("canvas_limpiado", () => {
-        limpiarLienzoLocal();
-      });
+      socket.on("timer_tick", ({ tiempo }) => setTiempo(tiempo));
+      socket.on("recibir_trazo", ({ x0, y0, x1, y1 }) => dibujarEnCanvas(x0, y0, x1, y1));
+      socket.on("canvas_limpiado", () => limpiarLienzoLocal());
 
       socket.on("adivinanza_correcta", ({ usuario, puntosActualizados, palabra }) => {
         setJugadores(puntosActualizados);
@@ -122,32 +119,9 @@ export default function Juego() {
     };
   }, [socket]);
 
-  // Manejo de Canvas
-  const startDrawing = (e) => {
-    if (!esDibujante) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    setPrevPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    setIsDrawing(true);
-  };
-
-  const draw = (e) => {
-    if (!isDrawing || !esDibujante) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const currentX = e.clientX - rect.left;
-    const currentY = e.clientY - rect.top;
-
-    dibujarEnCanvas(prevPos.x, prevPos.y, currentX, currentY);
-
-    socket.emit("dibujar_trazo", {
-      codigoSala,
-      x0: prevPos.x,
-      y0: prevPos.y,
-      x1: currentX,
-      y1: currentY,
-    });
-
-    setPrevPos({ x: currentX, y: currentY });
-  };
+  /* ==========================================
+     FUNCIONES DEL CANVAS (DIBUJO Y RETRANSMISIÓN)
+     ========================================== */
 
   const dibujarEnCanvas = (x0, y0, x1, y1) => {
     const canvas = canvasRef.current;
@@ -169,15 +143,48 @@ export default function Juego() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
+  const startDrawing = (e) => {
+    if (!esDibujante) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    setPrevPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setIsDrawing(true);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing || !esDibujante) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+
+    dibujarEnCanvas(prevPos.x, prevPos.y, currentX, currentY);
+
+    if (socket) {
+      socket.emit("dibujar_trazo", {
+        codigoSala,
+        x0: prevPos.x,
+        y0: prevPos.y,
+        x1: currentX,
+        y1: currentY,
+      });
+    }
+
+    setPrevPos({ x: currentX, y: currentY });
+  };
+
+  const handleBorrarLienzo = () => {
+    limpiarLienzoLocal();
+    if (socket) {
+      socket.emit("limpiar_canvas", { codigoSala });
+    }
+  };
+
   const handleEnviarIntento = (e) => {
     e.preventDefault();
     if (!intento.trim() || esDibujante) return;
 
-    socket.emit("enviar_intento", {
-      codigoSala,
-      intento,
-      usuario,
-    });
+    if (socket) {
+      socket.emit("enviar_intento", { codigoSala, intento, usuario });
+    }
     setIntento("");
   };
 
@@ -185,10 +192,10 @@ export default function Juego() {
     <main className="juego-main">
       <header className="juego-header">
         <h1>ARGENTILLO 🎨</h1>
-        <span className="badge-sala">Sala: {codigoSala}</span>
+        <Badge variant="gold">Sala: {codigoSala}</Badge>
       </header>
 
-      {/* VISTA 1: ESPERA Y CATEGORÍAS */}
+      {/* VISTA 1: SALA DE ESPERA */}
       {estadoJuego === "esperando" && (
         <div className="card-espera">
           <h2>Jugadores en Sala ({jugadores.length}/2)</h2>
@@ -207,13 +214,13 @@ export default function Juego() {
               <p style={{ fontWeight: 700, color: "#0284c7" }}>Elegí la categoría del juego:</p>
               <div className="grid-categorias">
                 {CATEGORIAS.map((cat) => (
-                  <button
+                  <Boton
                     key={cat}
-                    className="btn-categoria"
-                    onClick={() => socket.emit("seleccionar_categoria", { codigoSala, categoria: cat })}
+                    variant="secondary"
+                    onClick={() => socket && socket.emit("seleccionar_categoria", { codigoSala, categoria: cat })}
                   >
                     {cat}
-                  </button>
+                  </Boton>
                 ))}
               </div>
             </div>
@@ -223,14 +230,13 @@ export default function Juego() {
         </div>
       )}
 
-      {/* VISTA 2: PARTIDA Y CANVAS */}
+      {/* VISTA 2: DIBUJO Y CHAT EN VIVO */}
       {estadoJuego === "jugando" && (
         <div className="juego-layout">
-          {/* Columna Canvas */}
           <div className="panel-canvas">
             <div className="canvas-topbar">
-              <span className="timer-badge">⏱️ {tiempo}s</span>
-              <span className="turno-badge">Turno {subronda}/3</span>
+              <Badge variant="red">⏱️ {tiempo}s</Badge>
+              <Badge variant="blue">Turno {subronda}/3</Badge>
             </div>
 
             <div className="palabra-box">
@@ -249,21 +255,13 @@ export default function Juego() {
             />
 
             {esDibujante && (
-              <button
-                className="btn-borrar"
-                onClick={() => {
-                  limpiarLienzoLocal();
-                  socket.emit("limpiar_canvas", { codigoSala });
-                }}
-              >
+              <Boton variant="danger" className="btn-borrar" onClick={handleBorrarLienzo}>
                 🗑️ Borrar Lienzo
-              </button>
+              </Boton>
             )}
           </div>
 
-          {/* Columna Lateral */}
           <div className="panel-lateral">
-            {/* Tabla de Puntos */}
             <div className="card-puntos">
               <h4>🏆 Puntuación</h4>
               {jugadores.map((j) => (
@@ -274,7 +272,6 @@ export default function Juego() {
               ))}
             </div>
 
-            {/* Chat de Adivinanza */}
             <div className="card-chat">
               <div className="chat-box">
                 {chat.map((msg, idx) => (
@@ -286,16 +283,15 @@ export default function Juego() {
 
               {!esDibujante && (
                 <form onSubmit={handleEnviarIntento} className="form-chat">
-                  <input
-                    type="text"
-                    className="input-chat"
+                  <Input
                     placeholder="Escribí tu respuesta..."
                     value={intento}
                     onChange={(e) => setIntento(e.target.value)}
+                    className="input-chat"
                   />
-                  <button type="submit" className="btn-enviar">
+                  <Boton type="submit" variant="primary">
                     Enviar
-                  </button>
+                  </Boton>
                 </form>
               )}
             </div>
@@ -317,11 +313,13 @@ export default function Juego() {
                 </div>
               ))}
           </div>
-          <button className="btn-categoria" onClick={() => (window.location.href = "/sala")}>
+          <Boton variant="secondary" onClick={() => router.push("/sala")}>
             🔄 Volver a las Salas
-          </button>
+          </Boton>
         </div>
       )}
+
+      <BotonCerrarSesion />
     </main>
   );
 }

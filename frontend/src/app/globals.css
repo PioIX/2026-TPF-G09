@@ -1,265 +1,137 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
-
-/* ==========================================
-   VARIABLES Y RESET
-   ========================================== */
-:root {
-  --celeste-principal: #38bdf8;
-  --celeste-oscuro: #0284c7;
-  --celeste-claro: #e0f2fe;
-  --dorado-principal: #fbbf24;
-  --dorado-oscuro: #d97706;
-  --dorado-claro: #fef3c7;
-  --rojo-alerta: #ef4444;
-  --rojo-oscuro: #b91c1c;
-  --verde-exito: #22c55e;
-  --verde-oscuro: #15803d;
-  --fondo-oscuro: #0f172a;
-  --texto-principal: #1e293b;
-  --blanco: #ffffff;
-}
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* BOTÓN FLOTANTE ABAJO A LA DERECHA */
+.btn-logout-flotante {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #ef4444;
+  color: #ffffff;
+  border: 3px solid #b91c1c;
+  padding: 10px 18px;
+  border-radius: 14px;
   font-family: 'Fredoka', sans-serif;
-  -webkit-tap-highlight-color: transparent;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 4px 0px #b91c1c;
+  transition: all 0.1s ease;
+  z-index: 999;
 }
 
-body {
-  background: radial-gradient(circle at top, #38bdf8 0%, #0284c7 45%, #0f172a 100%);
-  color: var(--texto-principal);
-  min-height: 100vh;
-  overflow-x: hidden;
+.btn-logout-flotante:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0px #b91c1c;
 }
 
-/* ==========================================
-   ESTILOS DE COMPONENTES REUTILIZABLES
-   ========================================== */
+.btn-logout-flotante:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0px #b91c1c;
+}
 
-/* Botones 3D Reutilizables */
+/* ESTILOS BASE DE COMPONENTES */
 .btn-custom {
-  padding: 14px 22px;
-  border-radius: 16px;
-  font-size: 1.05rem;
+  padding: 12px 20px;
+  border-radius: 14px;
+  font-size: 1rem;
   font-weight: 700;
   font-family: 'Fredoka', sans-serif;
   cursor: pointer;
-  transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.1s ease;
   width: 100%;
-  outline: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  user-select: none;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .btn-primary {
-  background: var(--celeste-principal);
-  color: var(--blanco);
-  border: 3.5px solid var(--celeste-oscuro);
-  box-shadow: 0 5px 0px var(--celeste-oscuro), 0 8px 15px rgba(2, 132, 199, 0.3);
+  background: #38bdf8;
+  color: #ffffff;
+  border: 3px solid #0284c7;
+  box-shadow: 0 4px 0px #0284c7;
 }
 
 .btn-secondary {
-  background: var(--dorado-principal);
+  background: #fbbf24;
   color: #0f172a;
-  border: 3.5px solid var(--dorado-oscuro);
-  box-shadow: 0 5px 0px var(--dorado-oscuro), 0 8px 15px rgba(217, 119, 6, 0.3);
+  border: 3px solid #d97706;
+  box-shadow: 0 4px 0px #d97706;
 }
 
 .btn-danger {
   background: #fef2f2;
-  color: var(--rojo-oscuro);
-  border: 3px solid var(--rojo-oscuro);
-  box-shadow: 0 4px 0px var(--rojo-oscuro);
+  color: #b91c1c;
+  border: 2px solid #fca5a5;
+  box-shadow: 0 4px 0px #b91c1c;
 }
 
-.btn-custom:hover:not(:disabled) {
-  transform: translateY(-3px);
-  filter: brightness(1.05);
+.btn-custom:hover {
+  transform: translateY(-2px);
 }
 
-.btn-primary:hover:not(:disabled) {
-  box-shadow: 0 7px 0px var(--celeste-oscuro), 0 12px 20px rgba(2, 132, 199, 0.4);
+.btn-custom:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0px transparent;
 }
 
-.btn-secondary:hover:not(:disabled) {
-  box-shadow: 0 7px 0px var(--dorado-oscuro), 0 12px 20px rgba(217, 119, 6, 0.4);
-}
-
-.btn-custom:active:not(:disabled) {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0px transparent !important;
-}
-
-.btn-custom:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  filter: grayscale(40%);
-}
-
-/* Inputs Reutilizables */
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
-  width: 100%;
-}
-
-.input-group label {
-  color: var(--celeste-oscuro);
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-}
-
-.input-group input {
-  background: #f8fafc;
-  border: 3px solid #cbd5e1;
-  border-radius: 14px;
-  padding: 12px 16px;
-  color: var(--texto-principal);
-  font-family: 'Fredoka', sans-serif;
-  font-size: 1rem;
-  outline: none;
-  transition: all 0.2s ease;
-  width: 100%;
-}
-
-.input-group input:focus {
-  border-color: var(--celeste-principal);
-  background: var(--blanco);
-  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25);
-}
-
-/* Tarjeta Reutilizable */
 .card-container {
-  background: var(--blanco);
-  color: var(--texto-principal);
-  border: 4px solid var(--celeste-principal);
-  border-radius: 28px;
+  background: #ffffff;
+  color: #1e293b;
+  border: 4px solid #38bdf8;
+  border-radius: 24px;
   padding: 35px 30px;
-  max-width: 450px;
+  max-width: 440px;
   width: 100%;
-  box-shadow: 0 10px 0px var(--celeste-oscuro), 0 20px 35px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 0px #0284c7, 0 15px 25px rgba(0, 0, 0, 0.3);
   text-align: center;
-  margin: 0 auto;
 }
 
-/* Badges / Etiquetas */
 .badge-custom {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  border-radius: 14px;
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 12px;
   font-weight: 700;
   font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .badge-gold {
-  background: var(--dorado-principal);
+  background: #fbbf24;
   color: #0f172a;
-  border: 2px solid var(--dorado-oscuro);
-  box-shadow: 0 3px 0px var(--dorado-oscuro);
+  border: 2px solid #d97706;
+  box-shadow: 0 3px 0px #d97706;
 }
 
 .badge-blue {
-  background: var(--celeste-principal);
-  color: var(--blanco);
-  border: 2px solid var(--celeste-oscuro);
-  box-shadow: 0 3px 0px var(--celeste-oscuro);
+  background: #38bdf8;
+  color: #ffffff;
+  border: 2px solid #0284c7;
+  box-shadow: 0 3px 0px #0284c7;
 }
 
 .badge-red {
-  background: var(--rojo-alerta);
-  color: var(--blanco);
-  border: 2px solid var(--rojo-oscuro);
-  box-shadow: 0 3px 0px var(--rojo-oscuro);
+  background: #ef4444;
+  color: #ffffff;
+  border: 2px solid #b91c1c;
 }
 
-/* Modal Emergente */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(6px);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  padding: 20px;
 }
 
 .modal-content {
-  background: var(--blanco);
-  border: 4px solid var(--dorado-principal);
-  padding: 35px 28px;
-  border-radius: 28px;
-  max-width: 420px;
-  width: 100%;
-  box-shadow: 0 12px 0px var(--dorado-oscuro), 0 20px 40px rgba(0, 0, 0, 0.4);
+  background: #ffffff;
+  border: 4px solid #fbbf24;
+  padding: 30px;
+  border-radius: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 0px #d97706, 0 15px 30px rgba(0, 0, 0, 0.3);
   text-align: center;
-  animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.modal-content h2 {
-  color: var(--dorado-oscuro);
-  margin-top: 0;
-  font-size: 1.8rem;
-  text-shadow: 1px 1px 0px var(--dorado-claro);
-}
-
-/* Botón flotante para Cerrar Sesión */
-.btn-logout-flotante {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: #fee2e2;
-  color: var(--rojo-oscuro);
-  border: 3px solid var(--rojo-oscuro);
-  padding: 10px 18px;
-  border-radius: 16px;
-  font-family: 'Fredoka', sans-serif;
-  font-weight: 700;
-  font-size: 0.95rem;
-  cursor: pointer;
-  box-shadow: 0 4px 0px var(--rojo-oscuro);
-  transition: all 0.12s ease;
-  z-index: 999;
-}
-
-.btn-logout-flotante:hover {
-  transform: translateY(-3px);
-  background: #fca5a5;
-  box-shadow: 0 6px 0px var(--rojo-oscuro);
-}
-
-.btn-logout-flotante:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0px transparent;
-}
-
-@keyframes popIn {
-  from {
-    transform: scale(0.75);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
 }

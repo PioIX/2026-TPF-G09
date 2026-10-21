@@ -1,19 +1,29 @@
 "use client";
 
+import styles from "./Boton.module.css"; // O className si usás globales
+
 export default function Boton({
   children,
-  onClick,
+  variant = "primary",
   type = "button",
-  variant = "primary", // "primary", "secondary", "danger"
-  className = "",
+  onClick, // 👈 1. IMPORTANTE: Recibir la propiedad onClick
   disabled = false,
+  className = "",
 }) {
+  // Mapeo de clases según la variante
+  const variantClass =
+    variant === "secondary"
+      ? styles.secondary
+      : variant === "danger"
+      ? styles.danger
+      : styles.primary;
+
   return (
     <button
       type={type}
-      onClick={onClick}
+      onClick={onClick} // 👈 2. IMPORTANTE: Pasársela al button nativo
       disabled={disabled}
-      className={`btn-custom btn-${variant} ${className}`}
+      className={`${styles.btnCustom} ${variantClass} ${className}`}
     >
       {children}
     </button>

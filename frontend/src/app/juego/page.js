@@ -2,23 +2,35 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSocket } from "@/hooks/useSocket";
-import boton from "@/components/boton";
-import input from "@/components/input";
-import botoncerrar from "@/components/botoncerrar";
+import useSocket from "@/hooks/useSocket";
+import Input from "@/components/Input";
+import Boton from "@/components/Boton";
+import Badge from "@/components/Badge";
+import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./juego.css";
 
 export default function Juego() {
   const router = useRouter();
-  const socket = useSocket();
+  const { socket } = useSocket();
 
   // Estados de sala y usuario
   const [codigoSala, setCodigoSala] = useState("");
   const [usuario, setUsuario] = useState("");
-  const [esDibujante, setEsDibujante] = useState(true); // Cambiar a false cuando sea turno del rival
-  const [palabraSecreta, setPalabraSecreta] = useState("Mate");
+  const [jugadores, setJugadores] = useState([]);
+  const [esAnfitrion, setEsAnfitrion] = useState(false);
 
-  // Referencia y estados del Canvas
+  // Estados de partida
+  const [estadoJuego, setEstadoJuego] = useState("esperando"); // 'esperando' | 'jugando' | 'finalizado'
+  const [esDibujante, setEsDibujante] = useState(false);
+  const [palabraSecreta, setPalabraSecreta] = useState("");
+  const [tiempo, setTiempo] = useState(100);
+  const [subronda, setSubronda] = useState(1);
+
+  // Chat e Intentos
+  const [intento, setIntento] = useState("");
+  const [chat, setChat] = useState([]);
+
+  // Canvas y Trazo
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [prevPos, setPrevPos] = useState({ x: 0, y: 0 });
@@ -26,18 +38,67 @@ export default function Juego() {
   // 1. Escuchar trazos y eventos socket del rival
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setCodigoSala(params.get("sala") || "SALA1");
-    setUsuario(params.get("usuario") || "Jugador");
+    const salaUrl = params.get("sala") || "";
+    const usuarioUrl = params.get("usuario") || "";
 
-    if (socket) {
-      // Recibir trazo del rival
-      socket.on("recibir_trazo", ({ x0, y0, x1, y1 }) => {
-        dibujarEnCanvas(x0, y0, x1, y1);
+    setCodigoSala(salaUrl);
+    setUsuario(usuarioUrl);
+
+    if (socket && salaUrl && usuarioUrl) {
+      socket.emit("unirse_sala", { codigoSala: salaUrl, usuario: usuarioUrl });
+
+      socket.on("actualizar_jugadores", (lista) => {
+        setJugadores(lista);
+        const yo = lista.find((j) => j.usuario === usuarioUrl);
+        if (yo) setEsAnfitrion(yo.esAnfitrion);
       });
 
-      // Recibir orden de limpiar canvas
-      socket.on("canvas_limpiado", () => {
+      socket.on("inicio_turno", (data) => {
         limpiarLienzoLocal();
+        setEstadoJuego("jugando");
+        setJugadores(data.puntos);
+        setSubronda(data.subronda);
+
+        const soyDibujante = socket.id === data.dibujanteId;
+        setEsDibujante(soyDibujante);
+        setPalabraSecreta(data.palabraSecreta);
+
+        setChat((prev) => [
+          ...prev,
+          { tipo: "alerta", texto: `🔔 Turno de ${data.dibujanteNombre} (Turno ${data.subronda}/3)` }
+        ]);
+      });
+
+      socket.on("timer_tick", ({ tiempo }) => setTiempo(tiempo));
+      socket.on("recibir_trazo", ({ x0, y0, x1, y1 }) => dibujarEnCanvas(x0, y0, x1, y1));
+      socket.on("canvas_limpiado", () => limpiarLienzoLocal());
+
+      socket.on("adivinanza_correcta", ({ usuario, puntosActualizados, palabra }) => {
+        setJugadores(puntosActualizados);
+        setChat((prev) => [
+          ...prev,
+          { tipo: "exito", texto: `🎉 ¡GOLAZO! ${usuario} adivinó la palabra "${palabra}" (+100 pts)` }
+        ]);
+      });
+
+      socket.on("intento_fallido", ({ usuario, texto }) => {
+        setChat((prev) => [...prev, { tipo: "normal", texto: `${usuario}: ${texto}` }]);
+      });
+
+      socket.on("tiempo_agotado", ({ palabra }) => {
+        setChat((prev) => [
+          ...prev,
+          { tipo: "alerta", texto: `⏱️ ¡Tiempo agotado! La palabra era "${palabra}"` }
+        ]);
+      });
+
+      socket.on("jugador_desconectado", ({ mensaje }) => {
+        setChat((prev) => [...prev, { tipo: "alerta", texto: mensaje }]);
+      });
+
+      socket.on("fin_juego", ({ jugadores }) => {
+        setEstadoJuego("finalizado");
+        setJugadores(jugadores);
       });
     }
 
@@ -49,7 +110,10 @@ export default function Juego() {
     };
   }, [socket]);
 
-  // 2. Funciones para dibujar en la pantalla local
+  /* ==========================================
+     FUNCIONES DEL CANVAS (DIBUJO Y RETRANSMISIÓN)
+     ========================================== */
+
   const dibujarEnCanvas = (x0, y0, x1, y1) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -71,25 +135,101 @@ export default function Juego() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  // 3. Eventos del Mouse (Solo cuando es tu turno de dibujar)
-  const handleMouseDown = (e) => {
+  const startDrawing = (e) => {
     if (!esDibujante) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setPrevPos({ x, y });
+    setPrevPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     setIsDrawing(true);
   };
 
-  const handleMouseMove = (e) => {
+  const draw = (e) => {
     if (!isDrawing || !esDibujante) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const currentX = e.clientX - rect.left;
     const currentY = e.clientY - rect.top;
 
-    // Dibujar localmente
     dibujarEnCanvas(prevPos.x, prevPos.y, currentX, currentY);
+
+    if (socket) {
+      socket.emit("dibujar_trazo", {
+        codigoSala,
+        x0: prevPos.x,
+        y0: prevPos.y,
+        x1: currentX,
+        y1: currentY,
+      });
+    }
+
+    setPrevPos({ x: currentX, y: currentY });
+  };
+
+  const handleBorrarLienzo = () => {
+    limpiarLienzoLocal();
+    if (socket) {
+      socket.emit("limpiar_canvas", { codigoSala });
+    }
+  };
+
+  const handleEnviarIntento = (e) => {
+    e.preventDefault();
+    if (!intento.trim() || esDibujante) return;
+
+    if (socket) {
+      socket.emit("enviar_intento", { codigoSala, intento, usuario });
+    }
+    setIntento("");
+  };
+
+  return (
+    <main className="juego-main">
+      <header className="juego-header">
+        <h1>ARGENTILLO 🎨</h1>
+        <Badge variant="gold">Sala: {codigoSala}</Badge>
+      </header>
+
+      {/* VISTA 1: SALA DE ESPERA */}
+      {estadoJuego === "esperando" && (
+        <div className="card-espera">
+          <h2>Jugadores en Sala ({jugadores.length}/2)</h2>
+          <div style={{ margin: "15px 0" }}>
+            {jugadores.map((j) => (
+              <p key={j.id} style={{ margin: "6px 0", fontSize: "1.1rem", fontWeight: 600 }}>
+                👤 {j.usuario} {j.esAnfitrion ? "👑" : ""}
+              </p>
+            ))}
+          </div>
+
+          {jugadores.length < 2 ? (
+            <p style={{ color: "#f59e0b", fontWeight: 700 }}>⏳ Esperando al rival para comenzar...</p>
+          ) : esAnfitrion ? (
+            <div>
+              <p style={{ fontWeight: 700, color: "#0284c7" }}>Elegí la categoría del juego:</p>
+              <div className="grid-categorias">
+                {CATEGORIAS.map((cat) => (
+                  <Boton
+                    key={cat}
+                    variant="secondary"
+                    onClick={() => socket && socket.emit("seleccionar_categoria", { codigoSala, categoria: cat })}
+                  >
+                    {cat}
+                  </Boton>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p style={{ color: "#0284c7", fontWeight: 700 }}>👑 El anfitrión está eligiendo la categoría...</p>
+          )}
+        </div>
+      )}
+
+      {/* VISTA 2: DIBUJO Y CHAT EN VIVO */}
+      {estadoJuego === "jugando" && (
+        <div className="juego-layout">
+          <div className="panel-canvas">
+            <div className="canvas-topbar">
+              <Badge variant="red">⏱️ {tiempo}s</Badge>
+              <Badge variant="blue">Turno {subronda}/3</Badge>
+            </div>
 
     // Transmitir al backend
     if (socket) {
@@ -105,47 +245,69 @@ export default function Juego() {
     setPrevPos({ x: currentX, y: currentY });
   };
 
-  const handleMouseUp = () => {
-    setIsDrawing(false);
-  };
+            {esDibujante && (
+              <Boton variant="danger" className="btn-borrar" onClick={handleBorrarLienzo}>
+                🗑️ Borrar Lienzo
+              </Boton>
+            )}
+          </div>
 
-  const handleBorrarLienzo = () => {
-    limpiarLienzoLocal();
-    if (socket) {
-      socket.emit("limpiar_canvas", { codigoSala });
-    }
-  };
+          <div className="panel-lateral">
+            <div className="card-puntos">
+              <h4>🏆 Puntuación</h4>
+              {jugadores.map((j) => (
+                <div key={j.id} className="jugador-fila">
+                  <span>{j.usuario}</span>
+                  <span>{j.puntos} pts</span>
+                </div>
+              ))}
+            </div>
 
-  return (
-    <main className="juego-main">
-      <header className="juego-header">
-        <h1>ARGENTILLO 🎨</h1>
-        <span className="badge-sala">Sala: {codigoSala}</span>
-      </header>
+            <div className="card-chat">
+              <div className="chat-box">
+                {chat.map((msg, idx) => (
+                  <p key={idx} className={`chat-msg ${msg.tipo || ""}`}>
+                    {msg.texto}
+                  </p>
+                ))}
+              </div>
 
-      <div className="panel-canvas">
-        <div className="palabra-box">
-          {esDibujante ? `Te toca dibujar: ${palabraSecreta}` : "👀 ¡Adiviná el dibujo!"}
+              {!esDibujante && (
+                <form onSubmit={handleEnviarIntento} className="form-chat">
+                  <Input
+                    placeholder="Escribí tu respuesta..."
+                    value={intento}
+                    onChange={(e) => setIntento(e.target.value)}
+                    className="input-chat"
+                  />
+                  <Boton type="submit" variant="primary">
+                    Enviar
+                  </Boton>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* LIENZO CANVAS */}
-        <canvas
-          ref={canvasRef}
-          width={540}
-          height={360}
-          className="lienzo-pinturillo"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        />
-
-        {esDibujante && (
-          <Boton variant="danger" className="btn-borrar" onClick={handleBorrarLienzo}>
-            🗑️ Borrar Lienzo
+      {/* VISTA 3: PODIO FINAL */}
+      {estadoJuego === "finalizado" && (
+        <div className="card-final">
+          <h2>🏆 FIN DEL JUEGO</h2>
+          <div style={{ margin: "20px 0" }}>
+            {jugadores
+              .sort((a, b) => b.puntos - a.puntos)
+              .map((j, idx) => (
+                <div key={j.id} className="jugador-fila" style={{ fontSize: "1.2rem", padding: "10px" }}>
+                  <span>{idx === 0 ? "🥇 Ganador:" : "🥈 Segundo:"} {j.usuario}</span>
+                  <strong>{j.puntos} pts</strong>
+                </div>
+              ))}
+          </div>
+          <Boton variant="secondary" onClick={() => router.push("/sala")}>
+            🔄 Volver a las Salas
           </Boton>
-        )}
-      </div>
+        </div>
+      )}
 
       <BotonCerrarSesion />
     </main>

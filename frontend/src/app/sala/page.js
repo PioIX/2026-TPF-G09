@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSocket } from "@/hooks/useSocket";
+import useSocket from "@/hooks/useSocket";
 import "./sala.css";
 
 export default function Sala() {

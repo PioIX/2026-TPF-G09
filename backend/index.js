@@ -13,24 +13,44 @@ app.use(bodyParser.json());
 app.use(cors());
 
 const server = http.createServer(app);
+
+// Configuración de Socket.IO con CORS para permitir puertos 3000 y 3001
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: {
+    origin: ["http://localhost:3000", "http://localhost:3001"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+  }
 });
 
-// BANCO DE PALABRAS CRIOLLAS
-const PALABRAS = {
-  Fútbol: ["Messi", "La Bombonera", "Scaloneta", "Tarjeta Roja", "Copa del Mundo", "Cancha", "Ofside"],
-  Lugares: ["Obelisco", "Cataratas del Iguazu", "Bariloche", "La Boca", "Cordillera", "Caminito"],
-  Comidas: ["Empanada", "Asado", "Milanesa", "Choripan", "Alfajor", "Dulce de Leche", "Provoleta"],
-  Tradiciones: ["Cebar Mate", "Bailar Tango", "Jugar al Truco", "Sifón de Soda", "Gaucho", "Carpincho"]
-};
-
 let salasActivas = {};
+
+// Consulta asíncrona para obtener palabra aleatoria desde la BD según categoría
+async function obtenerPalabraDeBD(nombreCategoria) {
+  try {
+    const query = `
+      SELECT p.palabra 
+      FROM Palabra p 
+      INNER JOIN categoria c ON p.id_categoria = c.id_categoria 
+      WHERE LOWER(c.nombre) = LOWER('${nombreCategoria}') 
+         OR LOWER(c.categoria) = LOWER('${nombreCategoria}')
+    `;
+    const resultados = await realizarQuery(query);
+
+    if (resultados && resultados.length > 0) {
+      const randomIndex = Math.floor(Math.random() * resultados.length);
+      return resultados[randomIndex].palabra;
+    }
+  } catch (error) {
+    console.error("Error al consultar palabras en la base de datos:", error);
+  }
+  return "Mate"; // Palabra de respaldo si no hay registros
+}
 
 io.on('connection', (socket) => {
   console.log('⚡ Jugador conectado por Socket:', socket.id);
 
-  // CREAR SALA
+  // CREAR SALA PRIVADA
   socket.on('crear_sala', ({ usuario }) => {
     const codigoSala = Math.random().toString(36).substring(2, 8).toUpperCase();
     socket.join(codigoSala);
@@ -64,7 +84,6 @@ io.on('connection', (socket) => {
     }
 
     socket.join(codigo);
-    
     if (!yaEstaEnSala) {
       sala.jugadores.push({ id: socket.id, usuario, puntos: 0, esAnfitrion: false });
     }
@@ -73,7 +92,7 @@ io.on('connection', (socket) => {
     io.to(codigo).emit('actualizar_jugadores', sala.jugadores);
   });
 
-  // SELECCIONAR CATEGORÍA E INICIAR
+  // SELECCIONAR CATEGORÍA E INICIAR TURNO
   socket.on('seleccionar_categoria', ({ codigoSala, categoria }) => {
     const sala = salasActivas[codigoSala];
     if (!sala) return;
@@ -84,7 +103,7 @@ io.on('connection', (socket) => {
     iniciarTurno(codigoSala);
   });
 
-  // TRAZOS Y CANVAS
+  // SINCRONIZACIÓN DE CANVAS Y DIBUJO
   socket.on('dibujar_trazo', ({ codigoSala, x0, y0, x1, y1 }) => {
     socket.to(codigoSala).emit('recibir_trazo', { x0, y0, x1, y1 });
   });
@@ -93,7 +112,7 @@ io.on('connection', (socket) => {
     io.to(codigoSala).emit('canvas_limpiado');
   });
 
-  // ENVIAR ADIVINANZA
+  // ENVIAR ADIVINANZA Y CHAT
   socket.on('enviar_intento', ({ codigoSala, intento, usuario }) => {
     const sala = salasActivas[codigoSala];
     if (!sala) return;
@@ -117,7 +136,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // MANEJO DE DESCONEXIONES EN VIVO
+  // MANEJO DE DESCONEXIONES EN TIEMPO REAL
   socket.on('disconnect', () => {
     console.log('🔴 Jugador desconectado:', socket.id);
 
@@ -132,7 +151,11 @@ io.on('connection', (socket) => {
         if (sala.intervalo) clearInterval(sala.intervalo);
 
         if (sala.jugadores.length === 0) {
-          delete salasActivas[codigo];
+          setTimeout(() => {
+            if (salasActivas[codigo] && salasActivas[codigo].jugadores.length === 0) {
+              delete salasActivas[codigo];
+            }
+          }, 5000);
         } else {
           io.to(codigo).emit('jugador_desconectado', {
             mensaje: `⚠️ ${jugadorSalido.usuario} abandonó la partida.`
@@ -144,12 +167,12 @@ io.on('connection', (socket) => {
   });
 });
 
-function iniciarTurno(codigoSala) {
+async function iniciarTurno(codigoSala) {
   const sala = salasActivas[codigoSala];
   if (!sala) return;
 
-  const lista = PALABRAS[sala.categoria] || PALABRAS["Comidas"];
-  sala.palabraActual = lista[Math.floor(Math.random() * lista.length)];
+  // Obtener palabra desde la BD de MySQL
+  sala.palabraActual = await obtenerPalabraDeBD(sala.categoria);
   sala.tiempoRestante = 100;
 
   const dibujanteActual = sala.jugadores[sala.dibujanteIndex];
@@ -200,66 +223,66 @@ function avanzarTurno(codigoSala) {
 }
 
 /* ==========================================
-   RUTAS DE LOGIN Y REGISTRO (MySQL)
+   RUTAS HTTP AUTENTICACIÓN (MySQL)
    ========================================== */
 app.get('/', function(req, res){ res.send({ message: 'OK' }); });
 
 app.post('/registro', async function(req, res) {
-    const nombre = req.body.nombre || req.body.usuario;
-    const mail = req.body.mail || req.body.email;
-    const contraseña = req.body.contraseña || req.body.contrasena || req.body.clave;
-    const edad = req.body.edad || 18;
+  const nombre = req.body.usuario || req.body.nombre;
+  const mail = req.body.email || req.body.mail;
+  const contraseña = req.body.contrasena || req.body.contraseña;
+  const edad = req.body.edad || 18;
 
-    if (!nombre || !mail || !contraseña) {
-        return res.status(400).send({ message: "Completá todos los campos obligatorios" });
+  if (!nombre || !mail || !contraseña) {
+    return res.status(400).send({ message: "Completá todos los campos obligatorios" });
+  }
+
+  try {
+    let usuarioExistente = await realizarQuery(
+      `SELECT * FROM Usuario WHERE mail="${mail}" OR nombre="${nombre}"`
+    );
+
+    if (usuarioExistente && usuarioExistente.length > 0) {
+      return res.status(400).send({ message: "El usuario o email ya existe" });
     }
 
-    try {
-        let usuarioExistente = await realizarQuery(
-            `SELECT * FROM Usuario WHERE mail="${mail}" OR nombre="${nombre}"`
-        );
+    await realizarQuery(`
+      INSERT INTO Usuario (nombre, edad, mail, contraseña) VALUES
+      ("${nombre}", ${edad}, "${mail}", "${contraseña}");
+    `);
 
-        if (usuarioExistente && usuarioExistente.length > 0) {
-            return res.status(400).send({ message: "El usuario o email ya existe" });
-        }
-
-        await realizarQuery(`
-            INSERT INTO Usuario (nombre, edad, mail, contraseña) VALUES
-            ("${nombre}", ${edad}, "${mail}", "${contraseña}");
-        `);
-
-        res.status(200).send({ message: "Usuario registrado con éxito" });
-    } catch (error) {
-        console.error("Error en /registro:", error);
-        res.status(500).send({ message: "Error interno en la base de datos" });
-    }
+    res.status(200).send({ message: "Usuario registrado con éxito" });
+  } catch (error) {
+    console.error("Error en /registro:", error);
+    res.status(500).send({ message: "Error interno en la base de datos" });
+  }
 });
 
 app.post('/login', async function(req, res) {
-    const usuarioIngresado = req.body.usuario || req.body.nombre;
-    const claveIngresada = req.body.clave || req.body.contrasena || req.body.contraseña;
+  const usuarioIngresado = req.body.usuario || req.body.nombre;
+  const claveIngresada = req.body.clave || req.body.contrasena || req.body.contraseña;
 
-    if (!usuarioIngresado || !claveIngresada) {
-        return res.status(400).send({ message: "Ingresá usuario y contraseña" });
+  if (!usuarioIngresado || !claveIngresada) {
+    return res.status(400).send({ message: "Ingresá usuario y contraseña" });
+  }
+
+  try {
+    let resultado = await realizarQuery(
+      `SELECT * FROM Usuario WHERE (nombre="${usuarioIngresado}" OR mail="${usuarioIngresado}") AND contraseña="${claveIngresada}"`
+    );
+
+    if (resultado && resultado.length > 0) {
+      res.status(200).send({ 
+        message: "Login correcto", 
+        usuario: resultado[0].nombre 
+      });
+    } else {
+      res.status(401).send({ message: "Usuario o contraseña incorrectos" });
     }
-
-    try {
-        let resultado = await realizarQuery(
-            `SELECT * FROM Usuario WHERE (nombre="${usuarioIngresado}" OR mail="${usuarioIngresado}") AND contraseña="${claveIngresada}"`
-        );
-
-        if (resultado && resultado.length > 0) {
-            res.status(200).send({ 
-                message: "Login correcto", 
-                usuario: resultado[0].nombre 
-            });
-        } else {
-            res.status(401).send({ message: "Usuario o contraseña incorrectos" });
-        }
-    } catch (error) {
-        console.error("Error en /login:", error);
-        res.status(500).send({ message: "Error en la base de datos" });
-    }
+  } catch (error) {
+    console.error("Error en /login:", error);
+    res.status(500).send({ message: "Error en la base de datos" });
+  }
 });
 
-server.listen(port, () => console.log(`Server running in http://localhost:${port}`));
+server.listen(port, () => console.log(`Servidor NodeJS corriendo en http://localhost:${port}`));

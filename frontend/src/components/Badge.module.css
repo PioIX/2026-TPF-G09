@@ -1,0 +1,30 @@
+.badgeCustom {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gold {
+  background: #fbbf24;
+  color: #0f172a;
+  border: 2px solid #d97706;
+  box-shadow: 0 3px 0px #d97706;
+}
+
+.blue {
+  background: #38bdf8;
+  color: #ffffff;
+  border: 2px solid #0284c7;
+  box-shadow: 0 3px 0px #0284c7;
+}
+
+.red {
+  background: #ef4444;
+  color: #ffffff;
+  border: 2px solid #b91c1c;
+  box-shadow: 0 3px 0px #b91c1c;
+}

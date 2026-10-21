@@ -23,7 +23,27 @@ const io = new Server(server, {
   }
 });
 
-let salasActivas = {};
+// Función para traer una palabra aleatoria desde la BD según la categoría
+async function obtenerPalabraDeBD(nombreCategoria) {
+  try {
+    const query = `
+      SELECT p.palabra 
+      FROM Palabra p 
+      INNER JOIN categoria c ON p.id_categoria = c.id_categoria 
+      WHERE LOWER(c.nombre) = LOWER('${nombreCategoria}') 
+         OR LOWER(c.categoria) = LOWER('${nombreCategoria}')
+    `;
+    const resultados = await realizarQuery(query);
+
+    if (resultados && resultados.length > 0) {
+      const randomIndex = Math.floor(Math.random() * resultados.length);
+      return resultados[randomIndex].palabra;
+    }
+  } catch (error) {
+    console.error("Error al consultar palabras en la base de datos:", error);
+  }
+  return "Mate"; 
+}
 
 // Consulta asíncrona para obtener palabra aleatoria desde la BD según categoría
 async function obtenerPalabraDeBD(nombreCategoria) {
@@ -167,11 +187,11 @@ io.on('connection', (socket) => {
   });
 });
 
-async function iniciarTurno(codigoSala) {
+ async function iniciarTurno(codigoSala) {
   const sala = salasActivas[codigoSala];
   if (!sala) return;
 
-  // Obtener palabra desde la BD de MySQL
+  // Consulta asíncrona a MySQL para obtener la palabra de la categoría elegida
   sala.palabraActual = await obtenerPalabraDeBD(sala.categoria);
   sala.tiempoRestante = 100;
 
@@ -185,8 +205,8 @@ async function iniciarTurno(codigoSala) {
     subronda: sala.subronda,
     ronda: sala.rondaActual
   });
-
-  clearInterval(sala.intervalo);
+  
+ clearInterval(sala.intervalo);
   sala.intervalo = setInterval(() => {
     sala.tiempoRestante--;
     io.to(codigoSala).emit('timer_tick', { tiempo: sala.tiempoRestante });

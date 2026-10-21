@@ -9,13 +9,11 @@ import Badge from "@/components/Badge";
 import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./juego.css";
 
-const CATEGORIAS = ["Fútbol", "Lugares", "Comidas", "Tradiciones"];
-
 export default function Juego() {
   const router = useRouter();
   const { socket } = useSocket();
 
-  // Estados de sala
+  // Estados de sala y usuario
   const [codigoSala, setCodigoSala] = useState("");
   const [usuario, setUsuario] = useState("");
   const [jugadores, setJugadores] = useState([]);
@@ -37,6 +35,7 @@ export default function Juego() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [prevPos, setPrevPos] = useState({ x: 0, y: 0 });
 
+  // 1. Escuchar trazos y eventos socket del rival
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const salaUrl = params.get("sala") || "";
@@ -105,16 +104,8 @@ export default function Juego() {
 
     return () => {
       if (socket) {
-        socket.off("actualizar_jugadores");
-        socket.off("inicio_turno");
-        socket.off("timer_tick");
         socket.off("recibir_trazo");
         socket.off("canvas_limpiado");
-        socket.off("adivinanza_correcta");
-        socket.off("intento_fallido");
-        socket.off("tiempo_agotado");
-        socket.off("jugador_desconectado");
-        socket.off("fin_juego");
       }
     };
   }, [socket]);
@@ -127,12 +118,13 @@ export default function Juego() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
-    ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
+    ctx.strokeStyle = "#0284c7"; // Color celeste
+    ctx.lineWidth = 4;           // Grosor de trazo
+    ctx.lineCap = "round";       // Bordes suaves
     ctx.stroke();
   };
 
@@ -239,20 +231,19 @@ export default function Juego() {
               <Badge variant="blue">Turno {subronda}/3</Badge>
             </div>
 
-            <div className="palabra-box">
-              {esDibujante ? `Te toca dibujar: ${palabraSecreta}` : "👀 ¡Adiviná el dibujo!"}
-            </div>
+    // Transmitir al backend
+    if (socket) {
+      socket.emit("dibujar_trazo", {
+        codigoSala,
+        x0: prevPos.x,
+        y0: prevPos.y,
+        x1: currentX,
+        y1: currentY,
+      });
+    }
 
-            <canvas
-              ref={canvasRef}
-              width={540}
-              height={360}
-              className="lienzo-pinturillo"
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={() => setIsDrawing(false)}
-              onMouseLeave={() => setIsDrawing(false)}
-            />
+    setPrevPos({ x: currentX, y: currentY });
+  };
 
             {esDibujante && (
               <Boton variant="danger" className="btn-borrar" onClick={handleBorrarLienzo}>
@@ -297,7 +288,6 @@ export default function Juego() {
             </div>
           </div>
         </div>
-      )}
 
       {/* VISTA 3: PODIO FINAL */}
       {estadoJuego === "finalizado" && (

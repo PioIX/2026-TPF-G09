@@ -17,15 +17,27 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// BANCO DE PALABRAS CRIOLLAS
-const PALABRAS = {
-  Fútbol: ["Messi", "La Bombonera", "Scaloneta", "Tarjeta Roja", "Copa del Mundo", "Cancha", "Ofside"],
-  Lugares: ["Obelisco", "Cataratas del Iguazu", "Bariloche", "La Boca", "Cordillera", "Caminito"],
-  Comidas: ["Empanada", "Asado", "Milanesa", "Choripan", "Alfajor", "Dulce de Leche", "Provoleta"],
-  Tradiciones: ["Cebar Mate", "Bailar Tango", "Jugar al Truco", "Sifón de Soda", "Gaucho", "Carpincho"]
-};
+// Función para traer una palabra aleatoria desde la BD según la categoría
+async function obtenerPalabraDeBD(nombreCategoria) {
+  try {
+    const query = `
+      SELECT p.palabra 
+      FROM Palabra p 
+      INNER JOIN categoria c ON p.id_categoria = c.id_categoria 
+      WHERE LOWER(c.nombre) = LOWER('${nombreCategoria}') 
+         OR LOWER(c.categoria) = LOWER('${nombreCategoria}')
+    `;
+    const resultados = await realizarQuery(query);
 
-let salasActivas = {};
+    if (resultados && resultados.length > 0) {
+      const randomIndex = Math.floor(Math.random() * resultados.length);
+      return resultados[randomIndex].palabra;
+    }
+  } catch (error) {
+    console.error("Error al consultar palabras en la base de datos:", error);
+  }
+  return "Mate"; 
+}
 
 io.on('connection', (socket) => {
   console.log('⚡ Jugador conectado por Socket:', socket.id);
@@ -144,12 +156,12 @@ io.on('connection', (socket) => {
   });
 });
 
-function iniciarTurno(codigoSala) {
+ async function iniciarTurno(codigoSala) {
   const sala = salasActivas[codigoSala];
   if (!sala) return;
 
-  const lista = PALABRAS[sala.categoria] || PALABRAS["Comidas"];
-  sala.palabraActual = lista[Math.floor(Math.random() * lista.length)];
+  // Consulta asíncrona a MySQL para obtener la palabra de la categoría elegida
+  sala.palabraActual = await obtenerPalabraDeBD(sala.categoria);
   sala.tiempoRestante = 100;
 
   const dibujanteActual = sala.jugadores[sala.dibujanteIndex];
@@ -162,8 +174,8 @@ function iniciarTurno(codigoSala) {
     subronda: sala.subronda,
     ronda: sala.rondaActual
   });
-
-  clearInterval(sala.intervalo);
+  
+ clearInterval(sala.intervalo);
   sala.intervalo = setInterval(() => {
     sala.tiempoRestante--;
     io.to(codigoSala).emit('timer_tick', { tiempo: sala.tiempoRestante });

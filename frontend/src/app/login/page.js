@@ -1,43 +1,81 @@
-```jsx
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Input from "@/components/input";
+import Boton from "@/components/Boton";
+import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./login.css";
 
 export default function Login() {
-  function handleSubmit(event) {
+  const router = useRouter();
+  const [usuario, setUsuario] = useState("");
+  const [clave, setClave] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleSubmit(event) {
     event.preventDefault();
-    alert("El inicio de sesión todavía no está conectado a la base de datos.");
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:4000/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario, clave }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        router.push(`/sala?usuario=${encodeURIComponent(data.usuario)}`);
+      } else {
+        setError(data.message || "Credenciales incorrectas");
+      }
+    } catch (err) {
+      setError("No se pudo conectar con el servidor backend");
+    }
   }
 
   return (
-    <div className="login-container">
-      <h1>Pinturillo</h1>
+    <main className="login-container">
+      <div className="login-card">
+        <h1>🖌️ INGRESAR AL TALLER</h1>
+        <p className="login-subtitle">¡Iniciá sesión para empezar a dibujar!</p>
 
-      <form className="login-form" onSubmit={handleSubmit}>
-        <h3>Iniciar sesión</h3>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <Input
+            label="Usuario o Email"
+            id="usuario"
+            placeholder="Tu usuario"
+            value={usuario}
+            onChange={(e) => setUsuario(e.target.value)}
+            required
+          />
 
-        <label htmlFor="usuario">Usuario</label>
-        <input
-          type="text"
-          id="usuario"
-          required
-        />
+          <Input
+            label="Contraseña"
+            id="clave"
+            type="password"
+            placeholder="••••••••"
+            value={clave}
+            onChange={(e) => setClave(e.target.value)}
+            required
+          />
 
-        <label htmlFor="contrasena">Contraseña</label>
-        <input
-          type="password"
-          id="contrasena"
-          required
-        />
+          <Boton type="submit" variant="primary">
+            ENTRAR Y JUGAR
+          </Boton>
+        </form>
 
-        <button type="submit">Entrar</button>
+        {error && <div className="error-msg">{error}</div>}
 
-        <p>
-          ¿No tenés cuenta? <Link href="/registro">Registrate</Link>
+        <p className="login-footer">
+          ¿No tenés cuenta? <Link href="/registro">Registrate gratis</Link>
         </p>
-      </form>
-    </div>
+      </div>
+
+      <BotonCerrarSesion />
+    </main>
   );
 }
-```

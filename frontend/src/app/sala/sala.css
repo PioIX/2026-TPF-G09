@@ -1,0 +1,208 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap');
+
+.sala-container {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #38bdf8 0%, #0284c7 40%, #0f172a 100%);
+  font-family: 'Fredoka', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.sala-card {
+  background: #ffffff;
+  color: #1e293b;
+  border: 4px solid #38bdf8;
+  border-radius: 24px;
+  padding: 35px 30px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 8px 0px #0284c7, 0 15px 25px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.sala-card h1 {
+  font-size: 2.2rem;
+  color: #0284c7;
+  margin: 0 0 5px;
+  text-shadow: 2px 2px 0px #bae6fd;
+}
+
+.sala-subtitle {
+  color: #64748b;
+  font-size: 1rem;
+  margin-bottom: 25px;
+}
+
+.opciones-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.opcion-box {
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  padding: 18px;
+  border-radius: 16px;
+}
+
+.opcion-box h2 {
+  font-size: 1.1rem;
+  color: #d97706;
+  margin: 0 0 10px;
+}
+
+.btn-crear {
+  width: 100%;
+  padding: 12px;
+  background: #fbbf24;
+  color: #0f172a;
+  border: 3px solid #d97706;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 0px #d97706;
+  transition: all 0.1s ease;
+}
+
+.btn-crear:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0px #d97706;
+}
+
+.btn-crear:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0px #d97706;
+}
+
+.divider {
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.unirse-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.unirse-form input {
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 10px;
+  color: #0f172a;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 1.1rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  outline: none;
+}
+
+.unirse-form input:focus {
+  border-color: #38bdf8;
+}
+
+.btn-unirse {
+  width: 100%;
+  padding: 12px;
+  background: #38bdf8;
+  color: #ffffff;
+  border: 3px solid #0284c7;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 0px #0284c7;
+  transition: all 0.1s ease;
+}
+
+.btn-unirse:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0px #0284c7;
+}
+
+.btn-unirse:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0px #0284c7;
+}
+
+.sala-footer {
+  margin-top: 20px;
+}
+
+.sala-footer a {
+  color: #0284c7;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* Modal / Popup de Confirmación */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background: #ffffff;
+  border: 4px solid #fbbf24;
+  padding: 30px;
+  border-radius: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 0px #d97706, 0 15px 30px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.modal-content h2 {
+  color: #d97706;
+  margin-top: 0;
+  font-size: 1.6rem;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-confirmar {
+  padding: 12px;
+  background: #fbbf24;
+  color: #0f172a;
+  border: 3px solid #d97706;
+  border-radius: 12px;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 0px #d97706;
+}
+
+.btn-cancelar {
+  padding: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 2px solid #fca5a5;
+  border-radius: 12px;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  cursor: pointer;
+}

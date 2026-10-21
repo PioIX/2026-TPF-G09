@@ -1,162 +1,288 @@
-var express = require('express'); //Tipo de servidor: Express
-var bodyParser = require('body-parser'); //Convierte los JSON
+var express = require('express'); 
+var http = require('http'); 
+var { Server } = require('socket.io'); 
+var bodyParser = require('body-parser'); 
 var cors = require('cors');
 const { realizarQuery } = require('./modulos/mysql');
 
-var app = express(); //Inicializo express
-var port = process.env.PORT || 4000; //Ejecuto el servidor en el puerto 4000
+var app = express(); 
+var port = process.env.PORT || 4000; 
 
-// Convierte una petición recibida (POST-GET...) a objeto JSON
-app.use(bodyParser.urlencoded({extended:false}));
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cors());
 
-//Pongo el servidor a escuchar
-app.listen(port, function(){
-    console.log(`Server running in http://localhost:${port}`);
+const server = http.createServer(app);
+
+// Configuración de Socket.IO con CORS para permitir puertos 3000 y 3001
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:3000", "http://localhost:3001"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+  }
 });
 
-app.get('/', function(req, res){
-    res.status(200).send({
-        message: 'Entraste pa!'
-    });
+let salasActivas = {};
+
+// Consulta asíncrona para obtener palabra aleatoria desde la BD según categoría
+async function obtenerPalabraDeBD(nombreCategoria) {
+  try {
+    const query = `
+      SELECT p.palabra 
+      FROM Palabra p 
+      INNER JOIN categoria c ON p.id_categoria = c.id_categoria 
+      WHERE LOWER(c.nombre) = LOWER('${nombreCategoria}') 
+         OR LOWER(c.categoria) = LOWER('${nombreCategoria}')
+    `;
+    const resultados = await realizarQuery(query);
+
+    if (resultados && resultados.length > 0) {
+      const randomIndex = Math.floor(Math.random() * resultados.length);
+      return resultados[randomIndex].palabra;
+    }
+  } catch (error) {
+    console.error("Error al consultar palabras en la base de datos:", error);
+  }
+  return "Mate"; // Palabra de respaldo si no hay registros
+}
+
+io.on('connection', (socket) => {
+  console.log('⚡ Jugador conectado por Socket:', socket.id);
+
+  // CREAR SALA PRIVADA
+  socket.on('crear_sala', ({ usuario }) => {
+    const codigoSala = Math.random().toString(36).substring(2, 8).toUpperCase();
+    socket.join(codigoSala);
+
+    salasActivas[codigoSala] = {
+      codigo: codigoSala,
+      jugadores: [{ id: socket.id, usuario, puntos: 0, esAnfitrion: true }],
+      estado: 'esperando',
+      categoria: null,
+      palabraActual: "",
+      dibujanteIndex: 0,
+      rondaActual: 1,
+      subronda: 1,
+      tiempoRestante: 100,
+      intervalo: null
+    };
+
+    socket.emit('sala_creada', { codigoSala, sala: salasActivas[codigoSala] });
+  });
+
+  // UNIRSE A SALA
+  socket.on('unirse_sala', ({ codigoSala, usuario }) => {
+    const codigo = codigoSala ? codigoSala.toUpperCase() : '';
+    const sala = salasActivas[codigo];
+
+    if (!sala) return socket.emit('error_sala', 'La sala no existe o venció');
+    
+    const yaEstaEnSala = sala.jugadores.some(j => j.id === socket.id);
+    if (sala.jugadores.length >= 2 && !yaEstaEnSala) {
+      return socket.emit('error_sala', 'La sala está llena');
+    }
+
+    socket.join(codigo);
+    if (!yaEstaEnSala) {
+      sala.jugadores.push({ id: socket.id, usuario, puntos: 0, esAnfitrion: false });
+    }
+
+    socket.emit('sala_unida', { codigoSala: codigo, sala });
+    io.to(codigo).emit('actualizar_jugadores', sala.jugadores);
+  });
+
+  // SELECCIONAR CATEGORÍA E INICIAR TURNO
+  socket.on('seleccionar_categoria', ({ codigoSala, categoria }) => {
+    const sala = salasActivas[codigoSala];
+    if (!sala) return;
+
+    sala.categoria = categoria;
+    sala.estado = 'jugando';
+
+    iniciarTurno(codigoSala);
+  });
+
+  // SINCRONIZACIÓN DE CANVAS Y DIBUJO
+  socket.on('dibujar_trazo', ({ codigoSala, x0, y0, x1, y1 }) => {
+    socket.to(codigoSala).emit('recibir_trazo', { x0, y0, x1, y1 });
+  });
+
+  socket.on('limpiar_canvas', ({ codigoSala }) => {
+    io.to(codigoSala).emit('canvas_limpiado');
+  });
+
+  // ENVIAR ADIVINANZA Y CHAT
+  socket.on('enviar_intento', ({ codigoSala, intento, usuario }) => {
+    const sala = salasActivas[codigoSala];
+    if (!sala) return;
+
+    const esCorrecto = intento.trim().toLowerCase() === sala.palabraActual.toLowerCase();
+
+    if (esCorrecto) {
+      const jugador = sala.jugadores.find(j => j.id === socket.id);
+      if (jugador) jugador.puntos += 100;
+
+      io.to(codigoSala).emit('adivinanza_correcta', {
+        usuario,
+        puntosActualizados: sala.jugadores,
+        palabra: sala.palabraActual
+      });
+
+      clearInterval(sala.intervalo);
+      avanzarTurno(codigoSala);
+    } else {
+      io.to(codigoSala).emit('intento_fallido', { usuario, texto: intento });
+    }
+  });
+
+  // MANEJO DE DESCONEXIONES EN TIEMPO REAL
+  socket.on('disconnect', () => {
+    console.log('🔴 Jugador desconectado:', socket.id);
+
+    for (const codigo in salasActivas) {
+      const sala = salasActivas[codigo];
+      const index = sala.jugadores.findIndex(j => j.id === socket.id);
+
+      if (index !== -1) {
+        const jugadorSalido = sala.jugadores[index];
+        sala.jugadores.splice(index, 1);
+
+        if (sala.intervalo) clearInterval(sala.intervalo);
+
+        if (sala.jugadores.length === 0) {
+          setTimeout(() => {
+            if (salasActivas[codigo] && salasActivas[codigo].jugadores.length === 0) {
+              delete salasActivas[codigo];
+            }
+          }, 5000);
+        } else {
+          io.to(codigo).emit('jugador_desconectado', {
+            mensaje: `⚠️ ${jugadorSalido.usuario} abandonó la partida.`
+          });
+        }
+        break;
+      }
+    }
+  });
 });
 
-/**
- * req = request. en este objeto voy a tener todo lo que reciba del cliente
- * res = response. Voy a responderle al cliente
- */
+async function iniciarTurno(codigoSala) {
+  const sala = salasActivas[codigoSala];
+  if (!sala) return;
 
+  // Obtener palabra desde la BD de MySQL
+  sala.palabraActual = await obtenerPalabraDeBD(sala.categoria);
+  sala.tiempoRestante = 100;
 
+  const dibujanteActual = sala.jugadores[sala.dibujanteIndex];
 
-app.get('/clubes', async function(req,res){
-    let respuesta;
-    if (req.query.id != undefined) {
-        respuesta = await realizarQuery(`SELECT * FROM Clubes WHERE id=${req.query.id}`)
-    } else {
-        respuesta = await realizarQuery("SELECT * FROM Clubes");
-    }    
-    res.send(respuesta);
-})
-app.get('/estadios', async function(req,res){
-    let respuesta;
-    if (req.query.id != undefined) {
-        respuesta = await realizarQuery(`SELECT * FROM Estadios WHERE id=${req.query.id}`)
-    } else {
-        respuesta = await realizarQuery("SELECT * FROM Estadios");
-    }    
-    res.send(respuesta);
-})
-app.get('/jugadores', async function(req,res){
-    let respuesta;
-    if (req.query.id != undefined) {
-        respuesta = await realizarQuery(`SELECT * FROM Jugadores WHERE id=${req.query.id}`)
-    } else {
-        respuesta = await realizarQuery("SELECT * FROM Jugadores");
-    }    
-    res.send(respuesta);
-})
+  io.to(codigoSala).emit('inicio_turno', {
+    dibujanteId: dibujanteActual.id,
+    dibujanteNombre: dibujanteActual.usuario,
+    palabraSecreta: sala.palabraActual,
+    puntos: sala.jugadores,
+    subronda: sala.subronda,
+    ronda: sala.rondaActual
+  });
 
+  clearInterval(sala.intervalo);
+  sala.intervalo = setInterval(() => {
+    sala.tiempoRestante--;
+    io.to(codigoSala).emit('timer_tick', { tiempo: sala.tiempoRestante });
 
-//cuando se inserta un club validar q no exista:
-app.post('/clubes', async function(req,res) {
-    console.log(req.body)
-    let clubExistente = await realizarQuery(`SELECT Nombre_equipo FROM Clubes WHERE nombre_equipo="${req.body.nombre_equipo}"`);
-    console.log(clubExistente)
-    if (clubExistente.length > 0) {
-        res.send("El club ya existe");
-    } else {
-        await realizarQuery(`
-        INSERT INTO Clubes (nombre_equipo,nombre_dt,posicion_tabla) VALUES
-        ("${req.body.nombre_equipo}","${req.body.nombre_dt}",${req.body.posicion_tabla});
-        `)
-        res.send({message: "Club agregado"})
+    if (sala.tiempoRestante <= 0) {
+      clearInterval(sala.intervalo);
+      io.to(codigoSala).emit('tiempo_agotado', { palabra: sala.palabraActual });
+      avanzarTurno(codigoSala);
     }
-})  
+  }, 1000);
+}
 
-app.post('/Estadios', async function(req,res) {
-    console.log(req.body)
-    let estadioExistente = await realizarQuery(`SELECT nombre_estadio FROM Estadios WHERE nombre_estadio="${req.body.nombre_estadio}"`);
-    console.log(estadioExistente)
-    if (estadioExistente.length > 0) {
-        res.send("El estadio ya existe");
-    } else {
-        await realizarQuery(`
-        INSERT INTO Estadios (nombre_estadio,ciudad,fecha_construccion,capacidad_espectadores,id_club) VALUES
-        ("${req.body.nombre_estadio}","${req.body.ciudad}","${req.body.fecha_construccion}",${req.body.capacidad_espectadores},${req.body.id_club});
-        `)
-        res.send("Estadio agregado")
+function avanzarTurno(codigoSala) {
+  const sala = salasActivas[codigoSala];
+  if (!sala) return;
+
+  sala.subronda++;
+
+  if (sala.subronda > 3) {
+    sala.subronda = 1;
+    sala.dibujanteIndex = (sala.dibujanteIndex === 0) ? 1 : 0;
+    sala.rondaActual++;
+  }
+
+  if (sala.rondaActual > 2 && sala.dibujanteIndex === 0) {
+    io.to(codigoSala).emit('fin_juego', { jugadores: sala.jugadores });
+    if (sala.intervalo) clearInterval(sala.intervalo);
+    delete salasActivas[codigoSala];
+  } else {
+    setTimeout(() => {
+      iniciarTurno(codigoSala);
+    }, 3000);
+  }
+}
+
+/* ==========================================
+   RUTAS HTTP AUTENTICACIÓN (MySQL)
+   ========================================== */
+app.get('/', function(req, res){ res.send({ message: 'OK' }); });
+
+app.post('/registro', async function(req, res) {
+  const nombre = req.body.usuario || req.body.nombre;
+  const mail = req.body.email || req.body.mail;
+  const contraseña = req.body.contrasena || req.body.contraseña;
+  const edad = req.body.edad || 18;
+
+  if (!nombre || !mail || !contraseña) {
+    return res.status(400).send({ message: "Completá todos los campos obligatorios" });
+  }
+
+  try {
+    let usuarioExistente = await realizarQuery(
+      `SELECT * FROM Usuario WHERE mail="${mail}" OR nombre="${nombre}"`
+    );
+
+    if (usuarioExistente && usuarioExistente.length > 0) {
+      return res.status(400).send({ message: "El usuario o email ya existe" });
     }
-})  
 
-app.post('/Jugadores', async function(req,res) {
-    console.log(req.body)
-    let jugadorExistente = await realizarQuery(`SELECT apellido_jugador FROM Jugadores WHERE apellido_jugador="${req.body.apellido_jugador}"`);
-    console.log(jugadorExistente)
-    if (jugadorExistente.length > 0) {
-        res.send("El jugador ya existe");
+    await realizarQuery(`
+      INSERT INTO Usuario (nombre, edad, mail, contraseña) VALUES
+      ("${nombre}", ${edad}, "${mail}", "${contraseña}");
+    `);
+
+    res.status(200).send({ message: "Usuario registrado con éxito" });
+  } catch (error) {
+    console.error("Error en /registro:", error);
+    res.status(500).send({ message: "Error interno en la base de datos" });
+  }
+});
+
+app.post('/login', async function(req, res) {
+  const usuarioIngresado = req.body.usuario || req.body.nombre;
+  const claveIngresada = req.body.clave || req.body.contrasena || req.body.contraseña;
+
+  if (!usuarioIngresado || !claveIngresada) {
+    return res.status(400).send({ message: "Ingresá usuario y contraseña" });
+  }
+
+  try {
+    let resultado = await realizarQuery(
+      `SELECT * FROM Usuario WHERE (nombre="${usuarioIngresado}" OR mail="${usuarioIngresado}") AND contraseña="${claveIngresada}"`
+    );
+
+    if (resultado && resultado.length > 0) {
+      res.status(200).send({ 
+        message: "Login correcto", 
+        usuario: resultado[0].nombre 
+      });
     } else {
-        await realizarQuery(`
-        INSERT INTO Jugadores (nombre_jugador,apellido_jugador,num_camiseta,posicion,id_club) VALUES
-        ("${req.body.nombre_jugador}","${req.body.apellido_jugador}",${req.body.num_camiseta},"${req.body.posicion}",${req.body.id_club});
-        `)
-        res.send("Jugador agregado")
+      res.status(401).send({ message: "Usuario o contraseña incorrectos" });
     }
-})  
+  } catch (error) {
+    console.error("Error en /login:", error);
+    res.status(500).send({ message: "Error en la base de datos" });
+  }
+});
 
-
-app.put('/clubes', async function(req,res) {
-    console.log(req.body) 
-    await realizarQuery(`
-    UPDATE Clubes SET
-        posicion_tabla=${req.body.posicion_tabla}
-    WHERE id=${req.body.id};
-    `)
-    res.send("Club actualizado")
-})  
-
-app.put('/estadios', async function(req,res) {
-    console.log(req.body) 
-    await realizarQuery(`
-    UPDATE Estadios SET
-        capacidad_espectadores=${req.body.capacidad_espectadores},
-    WHERE id=${req.body.id};
-    `)
-    res.send("Estadio actualizado")
-})  
-
-app.put('/Jugadores', async function(req,res) {
-    console.log(req.body) 
-    await realizarQuery(`
-    UPDATE Jugadores SET
-        num_camiseta=${req.body.num_camiseta},
-    WHERE id=${req.body.id};
-    `)
-    res.send("Jugador actualizado")
-})  
-
-
-
-app.delete('/clubes', async function(req,res) {
-    console.log(req.body) 
-    await realizarQuery(`
-    DELETE FROM Clubes WHERE id=${req.body.id};
-    `)
-    res.send("Club eliminado")
-})  
-
-app.delete('/estadios', async function(req,res) {
-    console.log(req.body) 
-    await realizarQuery(`
-    DELETE FROM Estadios WHERE id=${req.body.id};
-    `)
-    res.send("Estadio eliminado")
-})  
-
-app.delete('/jugadores', async function(req,res) {
-    console.log(req.body) 
-    await realizarQuery(`
-    DELETE FROM Jugadores WHERE id=${req.body.id};
-    `)
-    res.send("Jugador eliminado")
-})      
+server.listen(port, () => console.log(`Servidor NodeJS corriendo en http://localhost:${port}`));

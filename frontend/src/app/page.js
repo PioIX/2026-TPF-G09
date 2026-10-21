@@ -1,69 +1,34 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import Link from "next/link";
+import Tarjeta from "@/components/Tarjeta";
+import Badge from "@/components/Badge";
+import Boton from "../components/Boton";
+import "./home.css";
+import { Component } from "react";
 
 export default function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.js</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="main-container">
+      <Tarjeta>
+        <Badge variant="gold">🇦🇷 EDICIÓN CRIOLLA 🎨</Badge>
+        <h1 className="title">ARGENTILLO</h1>
+        <p className="subtitle">
+          El clásico juego de adivinar dibujos con el toque argentino. ¡Pintá, arriesgá y ganá!
+        </p>
+
+        <div className="button-group">
+          <Link href="/login" style={{ textDecoration: 'none' }}>
+            <Boton variant="primary">🖌️ INGRESAR AL TALLER</Boton>
+          </Link>
+
+          <Link href="/registro" style={{ textDecoration: 'none', marginTop: '10px' }}>
+            <Boton variant="secondary">👑 CREAR NUEVO ARTISTA</Boton>
+          </Link>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        <p className="footer-text">3 Rondas • 4 Categorías • Sockets en Vivo</p>
+      </Tarjeta>
+    </main>
   );
 }

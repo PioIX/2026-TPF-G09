@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Input from "@/components/Input";
+import Boton from "@/components/Boton";
+import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./registro.css";
 
 export default function Registro() {
+  const router = useRouter();
   const [usuario, setUsuario] = useState("");
-  const [email, setEmail] = useState(""); // 👈 FALTABA DECLARAR ESTA LÍNEA
+  const [email, setEmail] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [mensaje, setMensaje] = useState({ texto: "", tipo: "" });
 
@@ -24,15 +29,15 @@ export default function Registro() {
       const data = await response.json();
 
       if (response.ok) {
-        setMensaje({ texto: "🎉 ¡Perfil de artista creado! Redirigiendo...", tipo: "success" });
+        setMensaje({ texto: "🎉 ¡Perfil creado! Redirigiendo...", tipo: "success" });
         setTimeout(() => {
-          window.location.href = "/login";
-        }, 1500);
+          router.push("/login");
+        }, 1200);
       } else {
         setMensaje({ texto: data.message || "Error al registrarse", tipo: "error" });
       }
     } catch (error) {
-      setMensaje({ texto: "No se pudo conectar con el servidor backend", tipo: "error" });
+      setMensaje({ texto: "No se pudo conectar con el servidor", tipo: "error" });
     }
   }
 
@@ -43,45 +48,38 @@ export default function Registro() {
         <p className="registro-subtitle">Sumate al taller de Argentillo</p>
 
         <form className="registro-form" onSubmit={handleSubmit}>
-          <div className="input-group">
-            <label htmlFor="usuario">Usuario</label>
-            <input
-              type="text"
-              id="usuario"
-              placeholder="Ej: Picassito"
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-              required
-            />
-          </div>
+          <Input
+            label="Usuario"
+            id="usuario"
+            placeholder="Ej: Picassito"
+            value={usuario}
+            onChange={(e) => setUsuario(e.target.value)}
+            required
+          />
 
-          <div className="input-group">
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              placeholder="tu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+          <Input
+            label="Email"
+            id="email"
+            type="email"
+            placeholder="tu@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-          <div className="input-group">
-            <label htmlFor="contrasena">Contraseña</label>
-            <input
-              type="password"
-              id="contrasena"
-              placeholder="••••••••"
-              value={contrasena}
-              onChange={(e) => setContrasena(e.target.value)}
-              required
-            />
-          </div>
+          <Input
+            label="Contraseña"
+            id="contrasena"
+            type="password"
+            placeholder="••••••••"
+            value={contrasena}
+            onChange={(e) => setContrasena(e.target.value)}
+            required
+          />
 
-          <button type="submit" className="btn-registro-submit">
+          <Boton type="submit" variant="secondary">
             🎨 PREPARAR EL LIENZO
-          </button>
+          </Boton>
         </form>
 
         {mensaje.texto && (
@@ -92,6 +90,8 @@ export default function Registro() {
           ¿Ya sos parte del taller? <Link href="/login">Ingresá acá</Link>
         </p>
       </div>
+
+      <BotonCerrarSesion />
     </main>
   );
 }

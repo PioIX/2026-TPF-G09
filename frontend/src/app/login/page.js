@@ -1,77 +1,81 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Input from "@/components/input";
+import Boton from "@/components/Boton";
+import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./login.css";
 
 export default function Login() {
+  const router = useRouter();
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError("");
 
     try {
-      const res = await fetch("http://localhost:4000/login", {
+      const response = await fetch("http://localhost:4000/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ usuario, clave }),
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (res.ok) {
-        window.location.href = "/sala";
+      if (response.ok) {
+        router.push(`/sala?usuario=${encodeURIComponent(data.usuario)}`);
       } else {
-        setError(data.message || "Usuario o clave incorrectos");
+        setError(data.message || "Credenciales incorrectas");
       }
     } catch (err) {
       setError("No se pudo conectar con el servidor backend");
     }
-  };
+  }
 
   return (
     <main className="login-container">
       <div className="login-card">
-        <h1>SACÁ EL PINCEL</h1>
-        <p className="login-subtitle">Ingresá a tu cuenta para pintar en Argentillo</p>
+        <h1>🖌️ INGRESAR AL TALLER</h1>
+        <p className="login-subtitle">¡Iniciá sesión para empezar a dibujar!</p>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="input-group">
-            <label>Tu apodo de artista</label>
-            <input
-              type="text"
-              placeholder="Tu apodo guerrero"
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-              required
-            />
-          </div>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <Input
+            label="Usuario o Email"
+            id="usuario"
+            placeholder="Tu usuario"
+            value={usuario}
+            onChange={(e) => setUsuario(e.target.value)}
+            required
+          />
 
-          <div className="input-group">
-            <label>Contraseña</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={clave}
-              onChange={(e) => setClave(e.target.value)}
-              required
-            />
-          </div>
+          <Input
+            label="Contraseña"
+            id="clave"
+            type="password"
+            placeholder="••••••••"
+            value={clave}
+            onChange={(e) => setClave(e.target.value)}
+            required
+          />
 
-          <button type="submit" className="btn-submit">
-            AGARRAR EL PINCEL
-          </button>
+          <Boton type="submit" variant="primary">
+            ENTRAR Y JUGAR
+          </Boton>
         </form>
 
-        {error && <p className="error-msg">{error}</p>}
+        {error && <div className="error-msg">{error}</div>}
 
         <p className="login-footer">
-          ¿Todavía no tenés cuenta? <Link href="/registro">Registrate acá</Link>
+          ¿No tenés cuenta? <Link href="/registro">Registrate gratis</Link>
         </p>
       </div>
+
+      <BotonCerrarSesion />
     </main>
   );
 }

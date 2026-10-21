@@ -1,105 +1,201 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import useSocket from "@/hooks/useSocket";
+import Input from "@/components/Input";
+import Boton from "@/components/Boton";
+import Badge from "@/components/Badge";
+import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./sala.css";
 
-export default function Sala() {
-  const router = useRouter();
-  const socket = useSocket();
+const CATEGORIAS = ["Fútbol", "Lugares", "Comidas", "Tradiciones"];
 
+export default function Juego() {
+  const router = useRouter();
+  const { socket } = useSocket();
+}
+  // Estados de sala
+  const [codigoSala, setCodigoSala] = useState("");
   const [usuario, setUsuario] = useState("");
-  const [codigoIngresado, setCodigoIngresado] = useState("");
-  const [codigoCreado, setCodigoCreado] = useState("");
-  const [mostrarModal, setMostrarModal] = useState(false);
+  const [jugadores, setJugadores] = useState([]);
+  const [esAnfitrion, setEsAnfitrion] = useState(false);
+
+  // Estados de partida
+  const [estadoJuego, setEstadoJuego] = useState("esperando"); // 'esperando' | 'jugando' | 'finalizado'
+  const [esDibujante, setEsDibujante] = useState(false);
+  const [palabraSecreta, setPalabraSecreta] = useState("");
+  const [tiempo, setTiempo] = useState(100);
+  const [subronda, setSubronda] = useState(1);
+
+  // Chat e Intentos
+  const [intento, setIntento] = useState("");
+  const [chat, setChat] = useState([]);
+
+  // Canvas y Trazo
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [prevPos, setPrevPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setUsuario(params.get("usuario") || "Invitado");
+    const salaUrl = params.get("sala") || "";
+    const usuarioUrl = params.get("usuario") || "";
 
-    if (socket) {
-      socket.on("sala_creada", ({ codigoSala }) => {
-        setCodigoCreado(codigoSala);
-        setMostrarModal(true);
+    setCodigoSala(salaUrl);
+    setUsuario(usuarioUrl);
+
+    if (socket && salaUrl && usuarioUrl) {
+      socket.emit("unirse_sala", { codigoSala: salaUrl, usuario: usuarioUrl });
+
+      socket.on("actualizar_jugadores", (lista) => {
+        setJugadores(lista);
+        const yo = lista.find((j) => j.usuario === usuarioUrl);
+        if (yo) setEsAnfitrion(yo.esAnfitrion);
       });
 
-      socket.on("sala_unida", ({ codigoSala }) => {
-        router.push(`/juego?sala=${codigoSala}&usuario=${encodeURIComponent(usuario)}`);
+      socket.on("inicio_turno", (data) => {
+        limpiarLienzoLocal();
+        setEstadoJuego("jugando");
+        setJugadores(data.puntos);
+        setSubronda(data.subronda);
+
+        const soyDibujante = socket.id === data.dibujanteId;
+        setEsDibujante(soyDibujante);
+        setPalabraSecreta(data.palabraSecreta);
+
+        setChat((prev) => [
+          ...prev,
+          { tipo: "alerta", texto: `🔔 Turno de ${data.dibujanteNombre} (Turno ${data.subronda}/3)` }
+        ]);
       });
 
-      socket.on("error_sala", (msg) => {
-        alert(msg);
+      socket.on("timer_tick", ({ tiempo }) => setTiempo(tiempo));
+      socket.on("recibir_trazo", ({ x0, y0, x1, y1 }) => dibujarEnCanvas(x0, y0, x1, y1));
+      socket.on("canvas_limpiado", () => limpiarLienzoLocal());
+
+      socket.on("adivinanza_correcta", ({ usuario, puntosActualizados, palabra }) => {
+        setJugadores(puntosActualizados);
+        setChat((prev) => [
+          ...prev,
+          { tipo: "exito", texto: `🎉 ¡GOLAZO! ${usuario} adivinó la palabra "${palabra}" (+100 pts)` }
+        ]);
+      });
+
+      socket.on("intento_fallido", ({ usuario, texto }) => {
+        setChat((prev) => [...prev, { tipo: "normal", texto: `${usuario}: ${texto}` }]);
+      });
+
+      socket.on("tiempo_agotado", ({ palabra }) => {
+        setChat((prev) => [
+          ...prev,
+          { tipo: "alerta", texto: `⏱️ ¡Tiempo agotado! La palabra era "${palabra}"` }
+        ]);
+      });
+
+      socket.on("jugador_desconectado", ({ mensaje }) => {
+        setChat((prev) => [...prev, { tipo: "alerta", texto: mensaje }]);
+      });
+
+      socket.on("fin_juego", ({ jugadores }) => {
+        setEstadoJuego("finalizado");
+        setJugadores(jugadores);
       });
     }
 
     return () => {
       if (socket) {
-        socket.off("sala_creada");
-        socket.off("sala_unida");
-        socket.off("error_sala");
+        socket.off("actualizar_jugadores");
+        socket.off("inicio_turno");
+        socket.off("timer_tick");
+        socket.off("recibir_trazo");
+        socket.off("canvas_limpiado");
+        socket.off("adivinanza_correcta");
+        socket.off("intento_fallido");
+        socket.off("tiempo_agotado");
+        socket.off("jugador_desconectado");
+        socket.off("fin_juego");
       }
     };
-  }, [socket, usuario, router]);
+  }, [socket]);
 
-  const handleCrearSala = () => {
-    socket.emit("crear_sala", { usuario });
+  /* ==========================================
+     FUNCIONES DEL CANVAS Y ACCIONES DE JUEGO
+     ========================================== */
+
+  const dibujarEnCanvas = (x0, y0, x1, y1) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.stroke();
   };
 
-  const handleUnirseSala = (e) => {
+  const limpiarLienzoLocal = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const startDrawing = (e) => {
+    if (!esDibujante) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    setPrevPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setIsDrawing(true);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing || !esDibujante) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+
+    dibujarEnCanvas(prevPos.x, prevPos.y, currentX, currentY);
+
+    if (socket) {
+      socket.emit("dibujar_trazo", {
+        codigoSala,
+        x0: prevPos.x,
+        y0: prevPos.y,
+        x1: currentX,
+        y1: currentY,
+      });
+    }
+
+    setPrevPos({ x: currentX, y: currentY });
+  };
+
+  const handleBorrarLienzo = () => {
+    limpiarLienzoLocal();
+    if (socket) {
+      socket.emit("limpiar_canvas", { codigoSala });
+    }
+  };
+
+  const handleEnviarIntento = (e) => {
     e.preventDefault();
-    if (!codigoIngresado.trim()) return;
-    socket.emit("unirse_sala", { codigoSala: codigoIngresado, usuario });
+    if (!intento.trim() || esDibujante) return;
+
+    if (socket) {
+      socket.emit("enviar_intento", { codigoSala, intento, usuario });
+    }
+    setIntento("");
   };
 
-  const irAlJuego = () => {
-    router.push(`/juego?sala=${codigoCreado}&usuario=${encodeURIComponent(usuario)}`);
-  };
+return (
+  <main className="juego-main">
+    <header className="juego-header">
+      <h1>ARGENTILLO 🎨</h1>
 
-  return (
-    <main className="sala-container">
-      <div className="sala-card">
-        <h1>SALAS DE JUEGO 🎨</h1>
-        <p className="sala-subtitle">Hola <strong>{usuario}</strong>, elegí una opción para jugar</p>
-
-        <div className="opciones-container">
-          <div className="opcion-box">
-            <h2>Crear una Sala Privada</h2>
-            <Boton variant="secondary" onClick={handleCrearSala}>
-              ➕ CREAR NUEVA SALA
-            </Boton>
-          </div>
-
-          <div className="divider">- O -</div>
-
-          <div className="opcion-box">
-            <h2>Sumarte a una Sala</h2>
-            <form onSubmit={handleUnirseSala} className="unirse-form">
-              <Input
-                placeholder="CÓDIGO (Ej: A3X9P2)"
-                value={codigoIngresado}
-                onChange={(e) => setCodigoIngresado(e.target.value)}
-                required
-              />
-              <Boton type="submit" variant="primary">
-                🚪 UNIRSE A SALA
-              </Boton>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <Modal isOpen={mostrarModal} titulo="¡SALA CREADA! 🎉">
-        <p>Pasale este código a tu compañero:</p>
-        <div style={{ fontSize: "2rem", fontWeight: "bold", letterSpacing: "4px", color: "#d97706", margin: "15px 0" }}>
-          {codigoCreado}
-        </div>
-        <Boton variant="secondary" onClick={irAlJuego}>
-          IR A LA SALA DE ESPERA
-        </Boton>
-      </Modal>
-
-      <BotonCerrarSesion />
-    </main>
-  );
-}
+      <span className="sala-badge">
+        Sala: {codigoSala}
+      </span>
+    </header>
+  </main>
+);

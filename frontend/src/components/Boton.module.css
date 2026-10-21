@@ -5,27 +5,30 @@
   font-weight: 700;
   font-family: 'Fredoka', sans-serif;
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: all 0.12s ease;
   width: 100%;
   outline: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .primary {
   background: #38bdf8;
   color: #ffffff;
-  border: 3px solid #0284c7;
-  box-shadow: 0 4px 0px #0284c7;
+  border: 3.5px solid #0284c7;
+  box-shadow: 0 4px 0px #0284c7, 0 6px 12px rgba(2, 132, 199, 0.25);
 }
 
 .secondary {
   background: #fbbf24;
   color: #0f172a;
-  border: 3px solid #d97706;
-  box-shadow: 0 4px 0px #d97706;
+  border: 3.5px solid #d97706;
+  box-shadow: 0 4px 0px #d97706, 0 6px 12px rgba(217, 119, 6, 0.25);
 }
 
 .danger {
@@ -37,14 +40,15 @@
 
 .btnCustom:hover:not(:disabled) {
   transform: translateY(-2px);
+  filter: brightness(1.04);
 }
 
 .primary:hover:not(:disabled) {
-  box-shadow: 0 6px 0px #0284c7;
+  box-shadow: 0 6px 0px #0284c7, 0 8px 16px rgba(2, 132, 199, 0.35);
 }
 
 .secondary:hover:not(:disabled) {
-  box-shadow: 0 6px 0px #d97706;
+  box-shadow: 0 6px 0px #d97706, 0 8px 16px rgba(217, 119, 6, 0.35);
 }
 
 .danger:hover:not(:disabled) {
@@ -53,7 +57,7 @@
 
 .btnCustom:active:not(:disabled) {
   transform: translateY(2px);
-  box-shadow: 0 1px 0px transparent;
+  box-shadow: 0 1px 0px transparent !important;
 }
 
 .btnCustom:disabled {

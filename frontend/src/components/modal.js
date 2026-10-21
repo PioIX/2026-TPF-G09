@@ -1,13 +1,12 @@
 "use client";
 
-export default function Modal({ isOpen, onClose, titulo, children }) {
-  if (!isOpen) return null;
+import styles from "./Modal.module.css";
 
+export default function Modal({ children, onClose }) {
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        {titulo && <h2>{titulo}</h2>}
-        <div className="modal-body">{children}</div>
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        {children}
       </div>
     </div>
   );

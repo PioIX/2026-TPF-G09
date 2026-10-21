@@ -2,26 +2,27 @@
   position: fixed;
   bottom: 20px;
   right: 20px;
-  background: #ef4444;
-  color: #ffffff;
-  border: 3px solid #b91c1c;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 3.5px solid #b91c1c;
   padding: 10px 18px;
-  border-radius: 14px;
+  border-radius: 16px;
   font-family: 'Fredoka', sans-serif;
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
   box-shadow: 0 4px 0px #b91c1c;
-  transition: all 0.1s ease;
+  transition: all 0.12s ease;
   z-index: 999;
 }
 
 .btnLogoutFlotante:hover {
   transform: translateY(-2px);
+  background: #fca5a5;
   box-shadow: 0 6px 0px #b91c1c;
 }
 
 .btnLogoutFlotante:active {
   transform: translateY(2px);
-  box-shadow: 0 1px 0px #b91c1c;
+  box-shadow: 0 1px 0px transparent;
 }

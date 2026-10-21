@@ -1,131 +1,109 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSocket } from "@/hooks/useSocket";
+import Boton from "@/components/Boton";
+import BotonCerrarSesion from "@/components/BotonCerrarSesion ";
+import Modal from "@/components/Modal";
+import Input from "@/components/Input";
 import "./sala.css";
 
 export default function Sala() {
+  const router = useRouter();
   const socket = useSocket();
 
-  const [modalCrear, setModalCrear] = useState(false);
-  const [nombreUsuario, setNombreUsuario] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [codigoIngresado, setCodigoIngresado] = useState("");
-  const [error, setError] = useState("");
+  const [codigoCreado, setCodigoCreado] = useState("");
+  const [mostrarModal, setMostrarModal] = useState(false);
 
   useEffect(() => {
-    if (!socket) return;
+    const params = new URLSearchParams(window.location.search);
+    setUsuario(params.get("usuario") || "Invitado");
 
-    socket.on("sala_creada", ({ codigoSala }) => {
-      window.location.href = `/juego?sala=${codigoSala}&usuario=${encodeURIComponent(nombreUsuario)}`;
-    });
+    if (socket) {
+      socket.on("sala_creada", ({ codigoSala }) => {
+        setCodigoCreado(codigoSala);
+        setMostrarModal(true);
+      });
 
-    socket.on("sala_unida", ({ codigoSala }) => {
-      window.location.href = `/juego?sala=${codigoSala}&usuario=${encodeURIComponent(nombreUsuario)}`;
-    });
+      socket.on("sala_unida", ({ codigoSala }) => {
+        router.push(`/juego?sala=${codigoSala}&usuario=${encodeURIComponent(usuario)}`);
+      });
 
-    socket.on("error_sala", (mensaje) => {
-      setError(mensaje);
-    });
+      socket.on("error_sala", (msg) => {
+        alert(msg);
+      });
+    }
 
     return () => {
-      socket.off("sala_creada");
-      socket.off("sala_unida");
-      socket.off("error_sala");
+      if (socket) {
+        socket.off("sala_creada");
+        socket.off("sala_unida");
+        socket.off("error_sala");
+      }
     };
-  }, [socket, nombreUsuario]);
+  }, [socket, usuario, router]);
 
-  const handleCrearSala = (e) => {
-    e.preventDefault();
-    if (!nombreUsuario.trim()) return setError("Ingresá tu apodo de artista");
-    setError("");
-
-    socket.emit("crear_sala", { usuario: nombreUsuario });
+  const handleCrearSala = () => {
+    socket.emit("crear_sala", { usuario });
   };
 
   const handleUnirseSala = (e) => {
     e.preventDefault();
-    if (!nombreUsuario.trim()) return setError("Ingresá tu apodo de artista");
-    if (!codigoIngresado.trim()) return setError("Ingresá un código de sala");
-    setError("");
+    if (!codigoIngresado.trim()) return;
+    socket.emit("unirse_sala", { codigoSala: codigoIngresado, usuario });
+  };
 
-    socket.emit("unirse_sala", {
-      codigoSala: codigoIngresado,
-      usuario: nombreUsuario,
-    });
+  const irAlJuego = () => {
+    router.push(`/juego?sala=${codigoCreado}&usuario=${encodeURIComponent(usuario)}`);
   };
 
   return (
     <main className="sala-container">
       <div className="sala-card">
-        <h1>🎮 SALA DE JUEGO</h1>
-        <p className="sala-subtitle">Ingresá tu apodo para continuar</p>
-
-        <div className="input-group" style={{ marginBottom: "20px" }}>
-          <label>Tu Apodo</label>
-          <input
-            type="text"
-            placeholder="Ej: Picassito"
-            value={nombreUsuario}
-            onChange={(e) => setNombreUsuario(e.target.value)}
-            style={{ textTransform: "none", textAlign: "center" }}
-            required
-          />
-        </div>
+        <h1>SALAS DE JUEGO 🎨</h1>
+        <p className="sala-subtitle">Hola <strong>{usuario}</strong>, elegí una opción para jugar</p>
 
         <div className="opciones-container">
           <div className="opcion-box">
-            <h2>👑 SER ANFITRIÓN</h2>
-            <button onClick={() => setModalCrear(true)} className="btn-crear">
-              🔥 CREAR SALA NUEVA
-            </button>
+            <h2>Crear una Sala Privada</h2>
+            <Boton variant="secondary" onClick={handleCrearSala}>
+              ➕ CREAR NUEVA SALA
+            </Boton>
           </div>
 
-          <div className="divider">— O —</div>
+          <div className="divider">- O -</div>
 
           <div className="opcion-box">
-            <h2>⚽ SUMARTE A UNA SALA</h2>
+            <h2>Sumarte a una Sala</h2>
             <form onSubmit={handleUnirseSala} className="unirse-form">
-              <input
-                type="text"
+              <Input
                 placeholder="CÓDIGO (Ej: A3X9P2)"
                 value={codigoIngresado}
                 onChange={(e) => setCodigoIngresado(e.target.value)}
-                maxLength={8}
                 required
               />
-              <button type="submit" className="btn-unirse">
-                🚀 UNIRME
-              </button>
+              <Boton type="submit" variant="primary">
+                🚪 UNIRSE A SALA
+              </Boton>
             </form>
           </div>
         </div>
-
-        {error && <p className="error-msg">{error}</p>}
-
-        <div className="sala-footer">
-          <Link href="/">⬅️ Volver al Inicio</Link>
-        </div>
       </div>
 
-      {modalCrear && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>🎨 CREAR SALA</h2>
-            <p style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
-              ¿Listo para ser el anfitrión con el apodo <strong>{nombreUsuario || "Anónimo"}</strong>?
-            </p>
-            <div className="modal-actions">
-              <button onClick={handleCrearSala} className="btn-confirmar">
-                ✅ INGRESAR A LA SALA
-              </button>
-              <button onClick={() => setModalCrear(false)} className="btn-cancelar">
-                ❌ CANCELAR
-              </button>
-            </div>
-          </div>
+      <Modal isOpen={mostrarModal} titulo="¡SALA CREADA! 🎉">
+        <p>Pasale este código a tu compañero:</p>
+        <div style={{ fontSize: "2rem", fontWeight: "bold", letterSpacing: "4px", color: "#d97706", margin: "15px 0" }}>
+          {codigoCreado}
         </div>
-      )}
+        <Boton variant="secondary" onClick={irAlJuego}>
+          IR A LA SALA DE ESPERA
+        </Boton>
+      </Modal>
+
+      <BotonCerrarSesion />
     </main>
   );
 }

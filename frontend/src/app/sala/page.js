@@ -1,12 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useSocket } from "@/hooks/useSocket";
-import Boton from "@/components/Boton";
-import BotonCerrarSesion from "@/components/BotonCerrarSesion ";
-import Modal from "@/components/Modal";
-import Input from "@/components/Input";
+import Link from "next/link";
+import useSocket from "@/hooks/useSocket";
 import "./sala.css";
 
 export default function Sala() {

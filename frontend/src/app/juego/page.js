@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSocket } from "@/hooks/useSocket";
+import  useSocket  from "@/hooks/useSocket";
 import "./juego.css";
 
 const CATEGORIAS = ["Fútbol", "Lugares", "Comidas", "Tradiciones"];

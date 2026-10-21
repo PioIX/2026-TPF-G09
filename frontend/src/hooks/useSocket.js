@@ -1,19 +1,36 @@
-"use client";
-
-import { useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
-// Instancia única para evitar conexiones múltiples
-export const socket = io("http://localhost:4000", {
-  autoConnect: false,
-});
+export default function useSocket({ serverUrl = "http://localhost:4000", options = {} } = {}) {
+  const [isConnected, setIsConnected] = useState(false);
+  const socketRef = useRef(null);
 
-export function useSocket() {
+  if (!socketRef.current) {
+   
+    socketRef.current = io(serverUrl, options);
+  }
+
   useEffect(() => {
-    if (!socket.connected) {
-      socket.connect();
-    }
+    const socket = socketRef.current;
+
+    const onConnect = () => {
+      setIsConnected(true);
+      console.log("🟢 WebSocket conectado:", socket.id);
+    };
+
+    const onDisconnect = () => {
+      setIsConnected(false);
+      console.log("🔴 WebSocket desconectado");
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+    };
   }, []);
 
-  return socket;
+  return { socket: socketRef.current, isConnected };
 }

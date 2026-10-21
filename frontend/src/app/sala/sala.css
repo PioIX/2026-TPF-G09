@@ -1,5 +1,7 @@
 .sala-fondo {
   min-height: 100vh;
+  background: radial-gradient(circle at top, #38bdf8 0%, #0284c7 40%, #0f172a 100%);
+  font-family: 'Fredoka', sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -6,7 +6,8 @@ export default function BotonCerrarSesion() {
   const router = useRouter();
 
   const handleLogout = () => {
-    router.push("/page.js");
+    // Redirige directamente al Login sin usar localStorage
+    router.push("/login");
   };
 
   return (

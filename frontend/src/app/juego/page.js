@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSocket } from "@/hooks/useSocket";
-import boton from "@/components/boton";
-import input from "@/components/input";
-import botoncerrar from "@/components/botoncerrar";
+import Boton from "@/components/Boton";
+import Input from "@/components/Input";
+import BotonCerrarSesion from "@/components/BotonCerrarSesionjs";
 import "./juego.css";
 
 export default function Juego() {

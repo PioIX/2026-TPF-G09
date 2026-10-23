@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./Input.module.css";
+
 export default function Input({
   label,
   id,
@@ -9,9 +11,10 @@ export default function Input({
   onChange,
   required = false,
   className = "",
+  ...props
 }) {
   return (
-    <div className="input-group">
+    <div className={styles.inputGroup}>
       {label && <label htmlFor={id}>{label}</label>}
       <input
         id={id}
@@ -20,7 +23,8 @@ export default function Input({
         value={value}
         onChange={onChange}
         required={required}
-        className={className}
+        className={`${styles.inputCustom} ${className}`}
+        {...props}
       />
     </div>
   );

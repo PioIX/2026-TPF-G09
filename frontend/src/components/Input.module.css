@@ -8,7 +8,7 @@
 
 .inputGroup label {
   color: #0284c7;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -16,8 +16,8 @@
 
 .inputGroup input {
   background: #f8fafc;
-  border: 3px solid #cbd5e1;
-  border-radius: 14px;
+  border: 2px solid #cbd5e1;
+  border-radius: 12px;
   padding: 12px 14px;
   color: #0f172a;
   font-family: 'Fredoka', sans-serif;
@@ -30,5 +30,5 @@
 .inputGroup input:focus {
   border-color: #38bdf8;
   background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
 }

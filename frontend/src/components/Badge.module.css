@@ -1,7 +1,5 @@
 .badgeCustom {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: inline-block;
   padding: 6px 14px;
   border-radius: 12px;
   font-weight: 700;

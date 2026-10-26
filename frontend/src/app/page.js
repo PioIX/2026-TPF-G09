@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Tarjeta from "@/components/tarjeta";
+import Tarjeta from "@/components/Tarjeta";
 import Badge from "@/components/Badge";
 import Boton from "@/components/boton";
 import "./home.css";

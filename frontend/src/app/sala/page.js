@@ -1,201 +1,197 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import useSocket from "@/hooks/useSocket";
-import Input from "@/components/Input";
-import Boton from "@/components/Boton";
-import Badge from "@/components/Badge";
-import BotonCerrarSesion from "@/components/BotonCerrarSesion";
-import "./sala.css";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { io } from "socket.io-client";
 
-const CATEGORIAS = ["Fútbol", "Lugares", "Comidas", "Tradiciones"];
+let socket;
 
-export default function Juego() {
+function SalaContent() {
   const router = useRouter();
-  const { socket } = useSocket();
-}
-  // Estados de sala
-  const [codigoSala, setCodigoSala] = useState("");
+  const searchParams = useSearchParams();
+
+  const usuarioQuery = searchParams.get("usuario");
   const [usuario, setUsuario] = useState("");
-  const [jugadores, setJugadores] = useState([]);
-  const [esAnfitrion, setEsAnfitrion] = useState(false);
 
-  // Estados de partida
-  const [estadoJuego, setEstadoJuego] = useState("esperando"); // 'esperando' | 'jugando' | 'finalizado'
-  const [esDibujante, setEsDibujante] = useState(false);
-  const [palabraSecreta, setPalabraSecreta] = useState("");
-  const [tiempo, setTiempo] = useState(100);
-  const [subronda, setSubronda] = useState(1);
-
-  // Chat e Intentos
-  const [intento, setIntento] = useState("");
-  const [chat, setChat] = useState([]);
-
-  // Canvas y Trazo
-  const canvasRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [prevPos, setPrevPos] = useState({ x: 0, y: 0 });
+  const [nombreSala, setNombreSala] = useState("");
+  const [codigoSala, setCodigoSala] = useState("");
+  const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const salaUrl = params.get("sala") || "";
-    const usuarioUrl = params.get("usuario") || "";
-
-    setCodigoSala(salaUrl);
-    setUsuario(usuarioUrl);
-
-    if (socket && salaUrl && usuarioUrl) {
-      socket.emit("unirse_sala", { codigoSala: salaUrl, usuario: usuarioUrl });
-
-      socket.on("actualizar_jugadores", (lista) => {
-        setJugadores(lista);
-        const yo = lista.find((j) => j.usuario === usuarioUrl);
-        if (yo) setEsAnfitrion(yo.esAnfitrion);
-      });
-
-      socket.on("inicio_turno", (data) => {
-        limpiarLienzoLocal();
-        setEstadoJuego("jugando");
-        setJugadores(data.puntos);
-        setSubronda(data.subronda);
-
-        const soyDibujante = socket.id === data.dibujanteId;
-        setEsDibujante(soyDibujante);
-        setPalabraSecreta(data.palabraSecreta);
-
-        setChat((prev) => [
-          ...prev,
-          { tipo: "alerta", texto: `🔔 Turno de ${data.dibujanteNombre} (Turno ${data.subronda}/3)` }
-        ]);
-      });
-
-      socket.on("timer_tick", ({ tiempo }) => setTiempo(tiempo));
-      socket.on("recibir_trazo", ({ x0, y0, x1, y1 }) => dibujarEnCanvas(x0, y0, x1, y1));
-      socket.on("canvas_limpiado", () => limpiarLienzoLocal());
-
-      socket.on("adivinanza_correcta", ({ usuario, puntosActualizados, palabra }) => {
-        setJugadores(puntosActualizados);
-        setChat((prev) => [
-          ...prev,
-          { tipo: "exito", texto: `🎉 ¡GOLAZO! ${usuario} adivinó la palabra "${palabra}" (+100 pts)` }
-        ]);
-      });
-
-      socket.on("intento_fallido", ({ usuario, texto }) => {
-        setChat((prev) => [...prev, { tipo: "normal", texto: `${usuario}: ${texto}` }]);
-      });
-
-      socket.on("tiempo_agotado", ({ palabra }) => {
-        setChat((prev) => [
-          ...prev,
-          { tipo: "alerta", texto: `⏱️ ¡Tiempo agotado! La palabra era "${palabra}"` }
-        ]);
-      });
-
-      socket.on("jugador_desconectado", ({ mensaje }) => {
-        setChat((prev) => [...prev, { tipo: "alerta", texto: mensaje }]);
-      });
-
-      socket.on("fin_juego", ({ jugadores }) => {
-        setEstadoJuego("finalizado");
-        setJugadores(jugadores);
-      });
+    // 1. Obtener usuario desde la URL o localStorage
+    let user = usuarioQuery;
+    if (!user) {
+      const stored = localStorage.getItem("usuario");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          user = parsed.usuario;
+        } catch {
+          user = stored;
+        }
+      }
     }
+
+    // Si no hay usuario, mandamos al login
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    setUsuario(user);
+
+    // 2. Conectar Socket.io al servidor backend
+    if (!socket) {
+      socket = io("http://localhost:4000");
+    }
+
+    // 3. Escuchar respuestas del servidor
+    const onSalaCreada = ({ codigoSala }) => {
+      setCargando(false);
+      router.push(`/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(user)}`);
+    };
+
+    const onUnidoExitoso = ({ codigoSala }) => {
+      setCargando(false);
+      router.push(`/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(user)}`);
+    };
+
+    const onErrorSala = (msg) => {
+      setCargando(false);
+      setError(msg);
+    };
+
+    socket.on("sala_creada", onSalaCreada);
+    socket.on("unido_exitoso", onUnidoExitoso);
+    socket.on("error_sala", onErrorSala);
 
     return () => {
-      if (socket) {
-        socket.off("actualizar_jugadores");
-        socket.off("inicio_turno");
-        socket.off("timer_tick");
-        socket.off("recibir_trazo");
-        socket.off("canvas_limpiado");
-        socket.off("adivinanza_correcta");
-        socket.off("intento_fallido");
-        socket.off("tiempo_agotado");
-        socket.off("jugador_desconectado");
-        socket.off("fin_juego");
-      }
+      socket.off("sala_creada", onSalaCreada);
+      socket.off("unido_exitoso", onUnidoExitoso);
+      socket.off("error_sala", onErrorSala);
     };
-  }, [socket]);
+  }, [router, usuarioQuery]);
 
-  /* ==========================================
-     FUNCIONES DEL CANVAS Y ACCIONES DE JUEGO
-     ========================================== */
-
-  const dibujarEnCanvas = (x0, y0, x1, y1) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.stroke();
-  };
-
-  const limpiarLienzoLocal = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
-
-  const startDrawing = (e) => {
-    if (!esDibujante) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    setPrevPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    setIsDrawing(true);
-  };
-
-  const draw = (e) => {
-    if (!isDrawing || !esDibujante) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const currentX = e.clientX - rect.left;
-    const currentY = e.clientY - rect.top;
-
-    dibujarEnCanvas(prevPos.x, prevPos.y, currentX, currentY);
-
-    if (socket) {
-      socket.emit("dibujar_trazo", {
-        codigoSala,
-        x0: prevPos.x,
-        y0: prevPos.y,
-        x1: currentX,
-        y1: currentY,
-      });
-    }
-
-    setPrevPos({ x: currentX, y: currentY });
-  };
-
-  const handleBorrarLienzo = () => {
-    limpiarLienzoLocal();
-    if (socket) {
-      socket.emit("limpiar_canvas", { codigoSala });
-    }
-  };
-
-  const handleEnviarIntento = (e) => {
+  const handleCrearSala = (e) => {
     e.preventDefault();
-    if (!intento.trim() || esDibujante) return;
+    setError("");
+    setCargando(true);
 
-    if (socket) {
-      socket.emit("enviar_intento", { codigoSala, intento, usuario });
-    }
-    setIntento("");
+    if (!socket) socket = io("http://localhost:4000");
+
+    socket.emit("crear_sala", {
+      nombreSala: nombreSala.trim() || `Sala de ${usuario}`,
+      usuario: usuario,
+    });
   };
 
-return (
-  <main className="juego-main">
-    <header className="juego-header">
-      <h1>ARGENTILLO 🎨</h1>
+  const handleUnirseSala = (e) => {
+    e.preventDefault();
+    setError("");
 
-      <span className="sala-badge">
-        Sala: {codigoSala}
-      </span>
-    </header>
-  </main>
-);
+    if (!codigoSala.trim()) {
+      setError("Ingresá un código de sala válido.");
+      return;
+    }
+
+    setCargando(true);
+
+    if (!socket) socket = io("http://localhost:4000");
+
+    socket.emit("unirse_sala", {
+      codigoSala: codigoSala.trim().toUpperCase(),
+      usuario: usuario,
+    });
+  };
+
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-4">
+      <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-700">
+        <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+          <div>
+            <h1 className="text-2xl font-black text-amber-400">ARGENTILLO 🎨</h1>
+            <p className="text-xs text-slate-400">¡Hola, <span className="text-amber-300 font-bold">{usuario}</span>!</p>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem("usuario");
+              router.push("/login");
+            }}
+            className="text-xs bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/20 transition-all"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-xl mb-6 text-center font-medium">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Opción 1: Crear Sala */}
+          <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-amber-400 mb-1">Crear Sala</h2>
+              <p className="text-xs text-slate-400 mb-4">Iniciá una sala privada y sé el anfitrión.</p>
+              
+              <form onSubmit={handleCrearSala} className="space-y-3">
+                <input
+                  type="text"
+                  value={nombreSala}
+                  onChange={(e) => setNombreSala(e.target.value)}
+                  placeholder="Nombre de la sala (opcional)"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                <button
+                  type="submit"
+                  disabled={cargando}
+                  className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-sm rounded-lg transition-all disabled:bg-slate-700"
+                >
+                  {cargando ? "Creando..." : "Crear Sala 🚀"}
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Opción 2: Unirse a Sala */}
+          <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-amber-400 mb-1">Unirse a Sala</h2>
+              <p className="text-xs text-slate-400 mb-4">Ingresá con el código que te pasó un amigo.</p>
+              
+              <form onSubmit={handleUnirseSala} className="space-y-3">
+                <input
+                  type="text"
+                  value={codigoSala}
+                  onChange={(e) => setCodigoSala(e.target.value.toUpperCase())}
+                  placeholder="Ej: X1Y2Z"
+                  maxLength={5}
+                  required
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white uppercase placeholder-slate-500 tracking-wider focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                <button
+                  type="submit"
+                  disabled={cargando}
+                  className="w-full py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-bold text-sm rounded-lg transition-all disabled:bg-slate-800"
+                >
+                  {cargando ? "Entrando..." : "Unirse 🎮"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export default function SalaPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-amber-400">Cargando salas...</div>}>
+      <SalaContent />
+    </Suspense>
+  );
+}

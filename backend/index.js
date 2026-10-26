@@ -1,308 +1,309 @@
-var express = require('express'); 
-var http = require('http'); 
-var { Server } = require('socket.io'); 
-var bodyParser = require('body-parser'); 
-var cors = require('cors');
-const { realizarQuery } = require('./modulos/mysql');
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
 
-var app = express(); 
-var port = process.env.PORT || 4000; 
-
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-app.use(cors());
-
+const app = express();
 const server = http.createServer(app);
 
-// Configuración de Socket.IO con CORS para permitir puertos 3000 y 3001
+// Configuración de Middlewares
+app.use(cors());
+app.use(express.json());
+
+// Configuración de Socket.io
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
+    origin: "*",
+    methods: ["GET", "POST"]
   }
 });
 
-// Función para traer una palabra aleatoria desde la BD según la categoría
-async function obtenerPalabraDeBD(nombreCategoria) {
-  try {
-    const query = `
-      SELECT p.palabra 
-      FROM Palabra p 
-      INNER JOIN categoria c ON p.id_categoria = c.id_categoria 
-      WHERE LOWER(c.nombre) = LOWER('${nombreCategoria}') 
-         OR LOWER(c.categoria) = LOWER('${nombreCategoria}')
-    `;
-    const resultados = await realizarQuery(query);
+// Base de datos en memoria para pruebas
+const usuarios = [];
+const salas = {};
 
-    if (resultados && resultados.length > 0) {
-      const randomIndex = Math.floor(Math.random() * resultados.length);
-      return resultados[randomIndex].palabra;
-    }
-  } catch (error) {
-    console.error("Error al consultar palabras en la base de datos:", error);
+// ==========================================
+// 1. RUTAS HTTP (REST API)
+// ==========================================
+
+// Ruta base de prueba
+app.get("/", (req, res) => {
+  res.send("Backend de ARGENTILLO activo 🎨");
+});
+
+// ==========================================
+// REGISTRO DE USUARIOS
+// ==========================================
+
+app.post("/api/registro", (req, res) => {
+  // Convertimos a String para evitar que números rompan el .trim()
+  const usuario = String(req.body.usuario || req.body.nombre || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const password = String(req.body.password || "").trim();
+
+  // Comprobar que estén todos los campos
+  if (!usuario || !email || !password) {
+    return res.status(400).json({
+      ok: false,
+      mensaje: "Todos los campos son obligatorios."
+    });
   }
-  return "Mate"; 
-}
 
-// Consulta asíncrona para obtener palabra aleatoria desde la BD según categoría
-async function obtenerPalabraDeBD(nombreCategoria) {
-  try {
-    const query = `
-      SELECT p.palabra 
-      FROM Palabra p 
-      INNER JOIN categoria c ON p.id_categoria = c.id_categoria 
-      WHERE LOWER(c.nombre) = LOWER('${nombreCategoria}') 
-         OR LOWER(c.categoria) = LOWER('${nombreCategoria}')
-    `;
-    const resultados = await realizarQuery(query);
+  // Comprobar si el nombre de usuario ya existe
+  const existeUsuario = usuarios.find(
+    (u) => u.usuario.toLowerCase() === usuario.toLowerCase()
+  );
 
-    if (resultados && resultados.length > 0) {
-      const randomIndex = Math.floor(Math.random() * resultados.length);
-      return resultados[randomIndex].palabra;
-    }
-  } catch (error) {
-    console.error("Error al consultar palabras en la base de datos:", error);
+  if (existeUsuario) {
+    return res.status(400).json({
+      ok: false,
+      mensaje: "El nombre de usuario ya está registrado."
+    });
   }
-  return "Mate"; // Palabra de respaldo si no hay registros
-}
 
-io.on('connection', (socket) => {
-  console.log('⚡ Jugador conectado por Socket:', socket.id);
+  // Comprobar si el correo ya existe
+  const existeEmail = usuarios.find(
+    (u) => u.email.toLowerCase() === email
+  );
 
-  // CREAR SALA PRIVADA
-  socket.on('crear_sala', ({ usuario }) => {
-    const codigoSala = Math.random().toString(36).substring(2, 8).toUpperCase();
-    socket.join(codigoSala);
+  if (existeEmail) {
+    return res.status(400).json({
+      ok: false,
+      mensaje: "El correo electrónico ya está registrado."
+    });
+  }
 
-    salasActivas[codigoSala] = {
+  // Crear el usuario
+  const nuevoUsuario = { usuario, email, password };
+  usuarios.push(nuevoUsuario);
+
+  console.log(`👤 Nuevo usuario registrado: ${usuario}`);
+
+  return res.status(201).json({
+    ok: true,
+    mensaje: "Usuario registrado con éxito.",
+    usuario: { usuario, email }
+  });
+});
+
+// ==========================================
+// INICIO DE SESIÓN
+// ==========================================
+
+app.post("/api/login", (req, res) => {
+  const usuario = String(
+    req.body.usuario || req.body.nombre || req.body.email || ""
+  ).trim();
+
+  const password = String(req.body.password || "").trim();
+
+  if (!usuario || !password) {
+    return res.status(400).json({
+      ok: false,
+      mensaje: "Completá usuario y contraseña."
+    });
+  }
+
+  const user = usuarios.find(
+    (u) =>
+      (u.usuario.toLowerCase() === usuario.toLowerCase() ||
+        u.email.toLowerCase() === usuario.toLowerCase()) &&
+      u.password === password
+  );
+
+  if (!user) {
+    return res.status(401).json({
+      ok: false,
+      mensaje: "Usuario o contraseña incorrectos."
+    });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    mensaje: "Inicio de sesión exitoso.",
+    usuario: {
+      usuario: user.usuario,
+      email: user.email
+    }
+  });
+});
+
+// ==========================================
+// 2. EVENTOS EN TIEMPO REAL (SOCKET.IO)
+// ==========================================
+
+io.on("connection", (socket) => {
+  console.log(`🟢 Socket conectado: ${socket.id}`);
+
+  // Crear sala
+  socket.on("crear_sala", ({ nombreSala, usuario }) => {
+    const usuarioLimpio = String(usuario || "Jugador").trim();
+    const codigoSala = Math.random()
+      .toString(36)
+      .substring(2, 7)
+      .toUpperCase();
+
+    salas[codigoSala] = {
       codigo: codigoSala,
-      jugadores: [{ id: socket.id, usuario, puntos: 0, esAnfitrion: true }],
-      estado: 'esperando',
-      categoria: null,
+      nombre: nombreSala || `Sala de ${usuarioLimpio}`,
+      anfitrion: socket.id,
+      estado: "espera",
       palabraActual: "",
-      dibujanteIndex: 0,
-      rondaActual: 1,
-      subronda: 1,
-      tiempoRestante: 100,
-      intervalo: null
+      dibujanteId: null,
+      jugadores: [
+        {
+          id: socket.id,
+          usuario: usuarioLimpio,
+          puntos: 0
+        }
+      ]
     };
 
-    socket.emit('sala_creada', { codigoSala, sala: salasActivas[codigoSala] });
+    socket.join(codigoSala);
+
+    socket.emit("sala_creada", {
+      codigoSala,
+      sala: salas[codigoSala]
+    });
+
+    console.log(`🏠 Sala creada: ${codigoSala} por ${usuarioLimpio}`);
   });
 
-  // UNIRSE A SALA
-  socket.on('unirse_sala', ({ codigoSala, usuario }) => {
-    const codigo = codigoSala ? codigoSala.toUpperCase() : '';
-    const sala = salasActivas[codigo];
+  // Unirse a sala
+  socket.on("unirse_sala", ({ codigoSala, usuario }) => {
+    const codigo = String(codigoSala || "").trim().toUpperCase();
+    const usuarioLimpio = String(usuario || "Jugador").trim();
+    const sala = salas[codigo];
 
-    if (!sala) return socket.emit('error_sala', 'La sala no existe o venció');
-    
-    const yaEstaEnSala = sala.jugadores.some(j => j.id === socket.id);
-    if (sala.jugadores.length >= 2 && !yaEstaEnSala) {
-      return socket.emit('error_sala', 'La sala está llena');
+    if (!sala) {
+      return socket.emit("error_sala", "La sala no existe.");
+    }
+
+    const existe = sala.jugadores.find(
+      (j) => j.usuario.toLowerCase() === usuarioLimpio.toLowerCase()
+    );
+
+    if (!existe) {
+      sala.jugadores.push({
+        id: socket.id,
+        usuario: usuarioLimpio,
+        puntos: 0
+      });
+    } else {
+      existe.id = socket.id;
     }
 
     socket.join(codigo);
-    if (!yaEstaEnSala) {
-      sala.jugadores.push({ id: socket.id, usuario, puntos: 0, esAnfitrion: false });
-    }
 
-    socket.emit('sala_unida', { codigoSala: codigo, sala });
-    io.to(codigo).emit('actualizar_jugadores', sala.jugadores);
+    io.to(codigo).emit("actualizar_jugadores", sala.jugadores);
+
+    socket.emit("unido_exitoso", {
+      codigoSala: codigo,
+      sala
+    });
+
+    console.log(`👤 ${usuarioLimpio} se unió a la sala: ${codigo}`);
   });
 
-  // SELECCIONAR CATEGORÍA E INICIAR TURNO
-  socket.on('seleccionar_categoria', ({ codigoSala, categoria }) => {
-    const sala = salasActivas[codigoSala];
-    if (!sala) return;
+  // Iniciar partida
+  socket.on("iniciar_partida", ({ codigoSala, categoria }) => {
+    const sala = salas[codigoSala];
 
-    sala.categoria = categoria;
-    sala.estado = 'jugando';
+    if (!sala || sala.jugadores.length === 0) return;
 
-    iniciarTurno(codigoSala);
+    const bancoPalabras = {
+      general: ["MATE", "EMPANADA", "OBELISCO", "FUTBOL", "TANGO", "ASADO", "CARPINCHO"],
+      personajes: ["MESSI", "MARADONA", "MAFALDA", "GATURRO"],
+      lugares: ["CAMINITO", "BARILOCHE", "CORRIENTES", "OBELISCO"]
+    };
+
+    const palabras = bancoPalabras[categoria] || bancoPalabras.general;
+    const palabraElegida = palabras[Math.floor(Math.random() * palabras.length)];
+
+    sala.estado = "jugando";
+    sala.palabraActual = palabraElegida;
+    sala.dibujanteId = sala.jugadores[0].id;
+
+    io.to(codigoSala).emit("partida_iniciada", {
+      palabraActual: sala.palabraActual,
+      dibujanteId: sala.dibujanteId,
+      duracion: 60
+    });
   });
 
-  // SINCRONIZACIÓN DE CANVAS Y DIBUJO
-  socket.on('dibujar_trazo', ({ codigoSala, x0, y0, x1, y1 }) => {
-    socket.to(codigoSala).emit('recibir_trazo', { x0, y0, x1, y1 });
+  // Sincronizar trazos del Canvas
+  socket.on("dibujar", ({ codigoSala, datosTrazo }) => {
+    socket.to(codigoSala).emit("dibujar", datosTrazo);
   });
 
-  socket.on('limpiar_canvas', ({ codigoSala }) => {
-    io.to(codigoSala).emit('canvas_limpiado');
+  // Limpiar Canvas
+  socket.on("limpiar_lienzo", (codigoSala) => {
+    io.to(codigoSala).emit("limpiar_lienzo");
   });
 
-  // ENVIAR ADIVINANZA Y CHAT
-  socket.on('enviar_intento', ({ codigoSala, intento, usuario }) => {
-    const sala = salasActivas[codigoSala];
-    if (!sala) return;
+  // Chat y detección de respuestas correctas
+  socket.on("enviar_mensaje", ({ codigoSala, usuario, mensaje }) => {
+    const sala = salas[codigoSala];
 
-    const esCorrecto = intento.trim().toLowerCase() === sala.palabraActual.toLowerCase();
+    if (!sala || typeof mensaje !== "string") return;
 
-    if (esCorrecto) {
-      const jugador = sala.jugadores.find(j => j.id === socket.id);
-      if (jugador) jugador.puntos += 100;
+    const intento = mensaje.trim().toUpperCase();
 
-      io.to(codigoSala).emit('adivinanza_correcta', {
-        usuario,
-        puntosActualizados: sala.jugadores,
-        palabra: sala.palabraActual
+    if (sala.estado === "jugando" && intento === sala.palabraActual) {
+      const jugador = sala.jugadores.find((j) => j.usuario === usuario);
+
+      if (jugador) {
+        jugador.puntos += 100;
+      }
+
+      io.to(codigoSala).emit("mensaje_recibido", {
+        usuario: "ARGENTILLO",
+        mensaje: `🎉 ¡${usuario} ADIVINÓ LA PALABRA! (+100 pts)`,
+        tipo: "exito"
       });
 
-      clearInterval(sala.intervalo);
-      avanzarTurno(codigoSala);
+      io.to(codigoSala).emit("actualizar_jugadores", sala.jugadores);
     } else {
-      io.to(codigoSala).emit('intento_fallido', { usuario, texto: intento });
+      io.to(codigoSala).emit("mensaje_recibido", {
+        usuario,
+        mensaje,
+        tipo: "normal"
+      });
     }
   });
 
-  // MANEJO DE DESCONEXIONES EN TIEMPO REAL
-  socket.on('disconnect', () => {
-    console.log('🔴 Jugador desconectado:', socket.id);
+  // Desconexión
+  socket.on("disconnect", () => {
+    console.log(`🔴 Socket desconectado: ${socket.id}`);
 
-    for (const codigo in salasActivas) {
-      const sala = salasActivas[codigo];
-      const index = sala.jugadores.findIndex(j => j.id === socket.id);
+    for (const codigo in salas) {
+      const sala = salas[codigo];
 
-      if (index !== -1) {
-        const jugadorSalido = sala.jugadores[index];
-        sala.jugadores.splice(index, 1);
+      sala.jugadores = sala.jugadores.filter((j) => j.id !== socket.id);
 
-        if (sala.intervalo) clearInterval(sala.intervalo);
-
-        if (sala.jugadores.length === 0) {
-          setTimeout(() => {
-            if (salasActivas[codigo] && salasActivas[codigo].jugadores.length === 0) {
-              delete salasActivas[codigo];
-            }
-          }, 5000);
-        } else {
-          io.to(codigo).emit('jugador_desconectado', {
-            mensaje: `⚠️ ${jugadorSalido.usuario} abandonó la partida.`
-          });
+      if (sala.jugadores.length === 0) {
+        delete salas[codigo];
+      } else {
+        // Reasignar anfitrión si el creador abandonó
+        if (sala.anfitrion === socket.id && sala.jugadores.length > 0) {
+          sala.anfitrion = sala.jugadores[0].id;
         }
-        break;
+        io.to(codigo).emit("actualizar_jugadores", sala.jugadores);
       }
     }
   });
 });
 
- async function iniciarTurno(codigoSala) {
-  const sala = salasActivas[codigoSala];
-  if (!sala) return;
+// ==========================================
+// 3. INICIO DEL SERVIDOR
+// ==========================================
 
-  // Consulta asíncrona a MySQL para obtener la palabra de la categoría elegida
-  sala.palabraActual = await obtenerPalabraDeBD(sala.categoria);
-  sala.tiempoRestante = 100;
+const PORT = process.env.PORT || 4000;
 
-  const dibujanteActual = sala.jugadores[sala.dibujanteIndex];
-
-  io.to(codigoSala).emit('inicio_turno', {
-    dibujanteId: dibujanteActual.id,
-    dibujanteNombre: dibujanteActual.usuario,
-    palabraSecreta: sala.palabraActual,
-    puntos: sala.jugadores,
-    subronda: sala.subronda,
-    ronda: sala.rondaActual
-  });
-  
- clearInterval(sala.intervalo);
-  sala.intervalo = setInterval(() => {
-    sala.tiempoRestante--;
-    io.to(codigoSala).emit('timer_tick', { tiempo: sala.tiempoRestante });
-
-    if (sala.tiempoRestante <= 0) {
-      clearInterval(sala.intervalo);
-      io.to(codigoSala).emit('tiempo_agotado', { palabra: sala.palabraActual });
-      avanzarTurno(codigoSala);
-    }
-  }, 1000);
-}
-
-function avanzarTurno(codigoSala) {
-  const sala = salasActivas[codigoSala];
-  if (!sala) return;
-
-  sala.subronda++;
-
-  if (sala.subronda > 3) {
-    sala.subronda = 1;
-    sala.dibujanteIndex = (sala.dibujanteIndex === 0) ? 1 : 0;
-    sala.rondaActual++;
-  }
-
-  if (sala.rondaActual > 2 && sala.dibujanteIndex === 0) {
-    io.to(codigoSala).emit('fin_juego', { jugadores: sala.jugadores });
-    if (sala.intervalo) clearInterval(sala.intervalo);
-    delete salasActivas[codigoSala];
-  } else {
-    setTimeout(() => {
-      iniciarTurno(codigoSala);
-    }, 3000);
-  }
-}
-
-/* ==========================================
-   RUTAS HTTP AUTENTICACIÓN (MySQL)
-   ========================================== */
-app.get('/', function(req, res){ res.send({ message: 'OK' }); });
-
-app.post('/registro', async function(req, res) {
-  const nombre = req.body.usuario || req.body.nombre;
-  const mail = req.body.email || req.body.mail;
-  const contraseña = req.body.contrasena || req.body.contraseña;
-  const edad = req.body.edad || 18;
-
-  if (!nombre || !mail || !contraseña) {
-    return res.status(400).send({ message: "Completá todos los campos obligatorios" });
-  }
-
-  try {
-    let usuarioExistente = await realizarQuery(
-      `SELECT * FROM Usuario WHERE mail="${mail}" OR nombre="${nombre}"`
-    );
-
-    if (usuarioExistente && usuarioExistente.length > 0) {
-      return res.status(400).send({ message: "El usuario o email ya existe" });
-    }
-
-    await realizarQuery(`
-      INSERT INTO Usuario (nombre, edad, mail, contraseña) VALUES
-      ("${nombre}", ${edad}, "${mail}", "${contraseña}");
-    `);
-
-    res.status(200).send({ message: "Usuario registrado con éxito" });
-  } catch (error) {
-    console.error("Error en /registro:", error);
-    res.status(500).send({ message: "Error interno en la base de datos" });
-  }
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("===========================================");
+  console.log("🎨 Servidor ARGENTILLO activo");
+  console.log(`Puerto: ${PORT}`);
+  console.log(`Dirección: http://localhost:${PORT}`);
+  console.log("===========================================");
 });
-
-app.post('/login', async function(req, res) {
-  const usuarioIngresado = req.body.usuario || req.body.nombre;
-  const claveIngresada = req.body.clave || req.body.contrasena || req.body.contraseña;
-
-  if (!usuarioIngresado || !claveIngresada) {
-    return res.status(400).send({ message: "Ingresá usuario y contraseña" });
-  }
-
-  try {
-    let resultado = await realizarQuery(
-      `SELECT * FROM Usuario WHERE (nombre="${usuarioIngresado}" OR mail="${usuarioIngresado}") AND contraseña="${claveIngresada}"`
-    );
-
-    if (resultado && resultado.length > 0) {
-      res.status(200).send({ 
-        message: "Login correcto", 
-        usuario: resultado[0].nombre 
-      });
-    } else {
-      res.status(401).send({ message: "Usuario o contraseña incorrectos" });
-    }
-  } catch (error) {
-    console.error("Error en /login:", error);
-    res.status(500).send({ message: "Error en la base de datos" });
-  }
-});
-
-server.listen(port, () => console.log(`Servidor NodeJS corriendo en http://localhost:${port}`));

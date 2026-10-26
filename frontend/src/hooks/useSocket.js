@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
-export default function useSocket({ serverUrl = "http://localhost:4000", options = {} } = {}) {
+// Usa la IP local de tu PC Servidor
+const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://10.1.4.153:4000";
+
+export default function useSocket({ serverUrl = SOCKET_SERVER_URL, options = {} } = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
 
   if (!socketRef.current) {
-   
     socketRef.current = io(serverUrl, options);
   }
 

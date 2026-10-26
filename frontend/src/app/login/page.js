@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Input from "@/components/Input";
 import Boton from "@/components/boton";
 import BotonCerrarSesion from "@/components/BotonCerrarSesion";
 import "./login.css";

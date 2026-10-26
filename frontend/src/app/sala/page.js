@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSocket from "@/hooks/useSocket";
-import Input from "@/components/Input";
+import Input from "@/components/input";
 import Boton from "@/components/boton";
 import Badge from "@/components/Badge";
 import BotonCerrarSesion from "@/components/BotonCerrarSesion";

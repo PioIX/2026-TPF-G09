@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Tarjeta from "@/components/Tarjeta";
-import Input from "@/components/Input";
+import Tarjeta from "@/components/tarjeta";
+import Input from "@/components/input";
 import Boton from "@/components/boton";
 import BotonCerrarSesion from "@/components/BotonCerrarSesion"
 import "./registro.css";

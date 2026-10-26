@@ -3,9 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import "./login.css";
 
-export default function Login() {
+export default function LoginPage() {
   const router = useRouter();
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
@@ -29,7 +28,7 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           usuario: usuario.trim(),
-          password: clave.trim(), // Se envía como "password" según requiere Express
+          password: clave.trim(),
         }),
       });
 
@@ -41,16 +40,10 @@ export default function Login() {
       }
 
       if (response.ok) {
-        // Obtenemos el nombre exacto enviado por el backend
         const nombreUsuario = data.usuario?.usuario || usuario.trim();
-        
-        // Guardamos la sesión local si se necesita más adelante
         localStorage.setItem("usuario", JSON.stringify(data.usuario));
-
-        // Redirigimos a la pantalla de salas
         router.push(`/sala?usuario=${encodeURIComponent(nombreUsuario)}`);
       } else {
-        // Muestra el mensaje enviado desde Express (data.mensaje)
         setError(data.mensaje || "Credenciales incorrectas.");
       }
     } catch (err) {

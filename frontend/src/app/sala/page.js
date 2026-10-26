@@ -14,12 +14,12 @@ function SalaContent() {
   const [usuario, setUsuario] = useState("");
 
   const [nombreSala, setNombreSala] = useState("");
+  const [categoria, setCategoria] = useState("TODAS"); // 👈 Estado para categoría
   const [codigoSala, setCodigoSala] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
   useEffect(() => {
-    // 1. Obtener usuario desde la URL o localStorage
     let user = usuarioQuery;
     if (!user) {
       const stored = localStorage.getItem("usuario");
@@ -33,7 +33,6 @@ function SalaContent() {
       }
     }
 
-    // Si no hay usuario, mandamos al login
     if (!user) {
       router.push("/login");
       return;
@@ -41,12 +40,8 @@ function SalaContent() {
 
     setUsuario(user);
 
-    // 2. Conectar Socket.io al servidor backend
-    if (!socket) {
-      socket = io("http://localhost:4000");
-    }
+    if (!socket) socket = io("http://localhost:4000");
 
-    // 3. Escuchar respuestas del servidor
     const onSalaCreada = ({ codigoSala }) => {
       setCargando(false);
       router.push(`/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(user)}`);
@@ -80,9 +75,11 @@ function SalaContent() {
 
     if (!socket) socket = io("http://localhost:4000");
 
+    // Enviamos 'categoria' al backend
     socket.emit("crear_sala", {
       nombreSala: nombreSala.trim() || `Sala de ${usuario}`,
-      usuario: usuario,
+      usuario,
+      categoria,
     });
   };
 
@@ -101,54 +98,72 @@ function SalaContent() {
 
     socket.emit("unirse_sala", {
       codigoSala: codigoSala.trim().toUpperCase(),
-      usuario: usuario,
+      usuario,
     });
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-4">
-      <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-700">
-        <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+    <main className="min-h-screen flex items-center justify-center p-4">
+      <div className="glass-panel p-8 w-full max-w-lg border border-slate-700/50 shadow-2xl">
+        <div className="flex justify-between items-center mb-6 border-b border-slate-700/60 pb-4">
           <div>
             <h1 className="text-2xl font-black text-amber-400">ARGENTILLO 🎨</h1>
-            <p className="text-xs text-slate-400">¡Hola, <span className="text-amber-300 font-bold">{usuario}</span>!</p>
+            <p className="text-xs text-slate-400">Jugador: <span className="text-amber-300 font-bold">{usuario}</span></p>
           </div>
           <button
             onClick={() => {
               localStorage.removeItem("usuario");
               router.push("/login");
             }}
-            className="text-xs bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/20 transition-all"
+            className="text-xs bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/20 transition-all font-semibold"
           >
             Cerrar sesión
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-xl mb-6 text-center font-medium">
+          <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-xl mb-6 text-center font-medium animate-shake">
             {error}
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Opción 1: Crear Sala */}
+          {/* CREAR SALA */}
           <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-700/60 flex flex-col justify-between">
             <div>
               <h2 className="text-lg font-bold text-amber-400 mb-1">Crear Sala</h2>
-              <p className="text-xs text-slate-400 mb-4">Iniciá una sala privada y sé el anfitrión.</p>
-              
+              <p className="text-xs text-slate-400 mb-4">Elegí el nombre y la categoría de palabras.</p>
+
               <form onSubmit={handleCrearSala} className="space-y-3">
-                <input
-                  type="text"
-                  value={nombreSala}
-                  onChange={(e) => setNombreSala(e.target.value)}
-                  placeholder="Nombre de la sala (opcional)"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                />
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Nombre</label>
+                  <input
+                    type="text"
+                    value={nombreSala}
+                    onChange={(e) => setNombreSala(e.target.value)}
+                    placeholder="Ej: Sala del Diego"
+                    className="w-full px-3 py-2 input-argentillo text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Categoría</label>
+                  <select
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                    className="w-full px-3 py-2 input-argentillo text-xs bg-slate-900 cursor-pointer"
+                  >
+                    <option value="TODAS">🇦R TODAS LAS CATEGORÍAS</option>
+                    <option value="COMIDAS">🥟 COMIDAS Y BEBIDAS</option>
+                    <option value="FUTBOL">⚽ FÚTBOL ARGENTINO</option>
+                    <option value="CULTURA">🏛️ CULTURA Y LUGARES</option>
+                  </select>
+                </div>
+
                 <button
                   type="submit"
                   disabled={cargando}
-                  className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-sm rounded-lg transition-all disabled:bg-slate-700"
+                  className="w-full py-2.5 btn-sol text-xs uppercase tracking-wider rounded-lg mt-2"
                 >
                   {cargando ? "Creando..." : "Crear Sala 🚀"}
                 </button>
@@ -156,26 +171,30 @@ function SalaContent() {
             </div>
           </div>
 
-          {/* Opción 2: Unirse a Sala */}
+          {/* UNIRSE A SALA */}
           <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-700/60 flex flex-col justify-between">
             <div>
               <h2 className="text-lg font-bold text-amber-400 mb-1">Unirse a Sala</h2>
-              <p className="text-xs text-slate-400 mb-4">Ingresá con el código que te pasó un amigo.</p>
-              
+              <p className="text-xs text-slate-400 mb-4">Ingresá con el código de 5 letras de tu amigo.</p>
+
               <form onSubmit={handleUnirseSala} className="space-y-3">
-                <input
-                  type="text"
-                  value={codigoSala}
-                  onChange={(e) => setCodigoSala(e.target.value.toUpperCase())}
-                  placeholder="Ej: X1Y2Z"
-                  maxLength={5}
-                  required
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white uppercase placeholder-slate-500 tracking-wider focus:outline-none focus:ring-2 focus:ring-amber-400"
-                />
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Código</label>
+                  <input
+                    type="text"
+                    value={codigoSala}
+                    onChange={(e) => setCodigoSala(e.target.value.toUpperCase())}
+                    placeholder="EJ: X1Y2Z"
+                    maxLength={5}
+                    required
+                    className="w-full px-3 py-2 input-argentillo text-xs tracking-widest font-mono text-center uppercase"
+                  />
+                </div>
+
                 <button
                   type="submit"
                   disabled={cargando}
-                  className="w-full py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-bold text-sm rounded-lg transition-all disabled:bg-slate-800"
+                  className="w-full py-2.5 btn-argentina text-xs uppercase tracking-wider rounded-lg"
                 >
                   {cargando ? "Entrando..." : "Unirse 🎮"}
                 </button>
@@ -190,7 +209,7 @@ function SalaContent() {
 
 export default function SalaPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-amber-400">Cargando salas...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-amber-400 font-bold">Cargando salas...</div>}>
       <SalaContent />
     </Suspense>
   );

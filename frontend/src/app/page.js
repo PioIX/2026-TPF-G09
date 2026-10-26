@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Tarjeta from "@/components/Tarjeta";
 import Badge from "@/components/Badge";
-import Boton from "../components/Boton";
+import Boton from "@/components/boton";
 import "./home.css";
 import { Component } from "react";
 

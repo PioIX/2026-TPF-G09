@@ -14,7 +14,8 @@ function SalaContent() {
   const [usuario, setUsuario] = useState("");
 
   const [nombreSala, setNombreSala] = useState("");
-  const [categoria, setCategoria] = useState("TODAS"); // 👈 Estado para categoría
+  const [categoria, setCategoria] = useState("TODAS");
+  const [categoriasLista, setCategoriasLista] = useState([]);
   const [codigoSala, setCodigoSala] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -39,6 +40,14 @@ function SalaContent() {
     }
 
     setUsuario(user);
+
+    // Cargar categorías dinámicas desde el backend
+    fetch("http://localhost:4000/api/categorias")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setCategoriasLista(data);
+      })
+      .catch((err) => console.log("Usando lista por defecto:", err));
 
     if (!socket) socket = io("http://localhost:4000");
 
@@ -75,11 +84,14 @@ function SalaContent() {
 
     if (!socket) socket = io("http://localhost:4000");
 
-    // Enviamos 'categoria' al backend
+    const catObj = categoriasLista.find((c) => String(c.id_categoria) === String(categoria));
+    const categoriaTexto = catObj ? catObj.nombre : "TODAS";
+
     socket.emit("crear_sala", {
       nombreSala: nombreSala.trim() || `Sala de ${usuario}`,
       usuario,
       categoria,
+      categoriaNombre: categoriaTexto,
     });
   };
 
@@ -115,20 +127,19 @@ function SalaContent() {
               localStorage.removeItem("usuario");
               router.push("/login");
             }}
-            className="text-xs bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/20 transition-all font-semibold"
+            className="text-xs bg-red-500/10 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-lg hover:bg-red-500/20 font-semibold"
           >
             Cerrar sesión
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-xl mb-6 text-center font-medium animate-shake">
+          <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-xl mb-6 text-center font-medium">
             {error}
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* CREAR SALA */}
           <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-700/60 flex flex-col justify-between">
             <div>
               <h2 className="text-lg font-bold text-amber-400 mb-1">Crear Sala</h2>
@@ -154,9 +165,20 @@ function SalaContent() {
                     className="w-full px-3 py-2 input-argentillo text-xs bg-slate-900 cursor-pointer"
                   >
                     <option value="TODAS">🇦R TODAS LAS CATEGORÍAS</option>
-                    <option value="COMIDAS">🥟 COMIDAS Y BEBIDAS</option>
-                    <option value="FUTBOL">⚽ FÚTBOL ARGENTINO</option>
-                    <option value="CULTURA">🏛️ CULTURA Y LUGARES</option>
+                    {categoriasLista.length > 0 ? (
+                      categoriasLista.map((cat) => (
+                        <option key={cat.id_categoria} value={cat.id_categoria}>
+                          {cat.nombre.toUpperCase()}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="1">⚽ FÚTBOL</option>
+                        <option value="2">🏛️ LUGARES DE ARGENTINA</option>
+                        <option value="3">🥟 COMIDAS ARGENTINAS</option>
+                        <option value="4">🎭 ACCIONES ARGENTINAS</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -171,11 +193,10 @@ function SalaContent() {
             </div>
           </div>
 
-          {/* UNIRSE A SALA */}
           <div className="bg-slate-900/60 p-5 rounded-xl border border-slate-700/60 flex flex-col justify-between">
             <div>
               <h2 className="text-lg font-bold text-amber-400 mb-1">Unirse a Sala</h2>
-              <p className="text-xs text-slate-400 mb-4">Ingresá con el código de 5 letras de tu amigo.</p>
+              <p className="text-xs text-slate-400 mb-4">Ingresá con el código de 5 letras.</p>
 
               <form onSubmit={handleUnirseSala} className="space-y-3">
                 <div>

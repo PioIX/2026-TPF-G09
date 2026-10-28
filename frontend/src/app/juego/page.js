@@ -7,32 +7,27 @@ import { io } from "socket.io-client";
 let socket;
 
 function JuegoContent() {
-  // Hooks llamados estrictamente al inicio del componente
   const router = useRouter();
   const searchParams = useSearchParams();
   const codigo = searchParams.get("codigo");
   const usuario = searchParams.get("usuario");
+  const idCategoria = searchParams.get("categoria") || "TODAS";
 
   // Estados de Partida
   const [jugadores, setJugadores] = useState([]);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState("");
-  const [copiado, setCopiado] = useState(false);
-
-  // Reloj, Rondas, Turnos y Categoría
   const [tiempo, setTiempo] = useState(60);
-  const [rondaInfo, setRondaInfo] = useState({ actual: 1, total: 3 });
-  const [categoriaNombre, setCategoriaNombre] = useState("TODAS");
-  const [dibujanteNombre, setDibujanteNombre] = useState("");
-  const [esMiTurno, setEsMiTurno] = useState(false);
+  const [ronda, setRonda] = useState(1);
+  const [dibujanteUsuario, setDibujanteUsuario] = useState("");
   const [palabraSecreta, setPalabraSecreta] = useState("");
-  const [longitudPalabra, setLongitudPalabra] = useState(0);
+  const [esMiTurno, setEsMiTurno] = useState(false);
 
   // Canvas
   const canvasRef = useRef(null);
   const [dibujando, setDibujando] = useState(false);
   const [color, setColor] = useState("#000000");
-  
+
   useEffect(() => {
     if (!codigo || !usuario) {
       router.push("/sala");
@@ -43,30 +38,16 @@ function JuegoContent() {
 
     socket.emit("unirse_sala", { codigoSala: codigo, usuario });
 
-    socket.on("actualizar_jugadores", (lista) => setJugadores(lista));
+    socket.on("jugador_unido", (nuevoJugador) => {
+      setJugadores((prev) => {
+        if (prev.some((j) => j.usuario === nuevoJugador.usuario)) return prev;
+        return [...prev, { ...nuevoJugador, puntos: 0 }];
+      });
+    });
+
     socket.on("mensaje_recibido", (msg) => setMensajes((prev) => [...prev, msg]));
-    socket.on("tick_tiempo", (segundos) => setTiempo(segundos));
-
-    socket.on("turno_iniciado", (data) => {
-      const miTurno = data.dibujanteNombre === usuario;
-      setDibujanteNombre(data.dibujanteNombre);
-      setLongitudPalabra(data.longitudPalabra);
-      setRondaInfo({ actual: data.rondaActual, total: data.totalRondas });
-      setTiempo(data.duracion);
-      if (data.categoria) setCategoriaNombre(data.categoria);
-      setEsMiTurno(miTurno);
-
-      if (!miTurno) {
-        setPalabraSecreta("");
-      }
-    });
-
-    socket.on("tu_turno", (data) => {
-      setEsMiTurno(true);
-      setPalabraSecreta(data.palabra);
-    });
-
     socket.on("dibujar", (datosTrazo) => dibujarEnCanvas(datosTrazo));
+
     socket.on("limpiar_lienzo", () => {
       const canvas = canvasRef.current;
       if (canvas) {
@@ -75,38 +56,109 @@ function JuegoContent() {
       }
     });
 
+    // Evento donde se recibe el nuevo turno y la palabra desde la BD
+    socket.on("turno_iniciado", (datos) => {
+      setTiempo(60);
+      setRonda(datos.ronda);
+      setDibujanteUsuario(datos.dibujanteUsuario);
+      
+      // Guardamos la palabra en estado para poder validar el chat
+      setPalabraSecreta(datos.palabra || "");
+
+      // Evaluamos si el usuario actual es quien dibuja
+      const esDibujante = datos.dibujanteUsuario.trim().toLowerCase() === usuario.trim().toLowerCase();
+      setEsMiTurno(esDibujante);
+    });
+
     return () => {
-      socket.off("actualizar_jugadores");
+      socket.off("jugador_unido");
       socket.off("mensaje_recibido");
-      socket.off("tick_tiempo");
-      socket.off("turno_iniciado");
-      socket.off("tu_turno");
       socket.off("dibujar");
       socket.off("limpiar_lienzo");
+      socket.off("turno_iniciado");
     };
   }, [codigo, usuario, router]);
 
-  const copiarCodigo = () => {
-    navigator.clipboard.writeText(codigo);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
+  // Dimensiones dinámicas del Canvas
+  useEffect(() => {
+    const recalcular = () => {
+      const canvas = canvasRef.current;
+      if (canvas && canvas.parentElement) {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = 480;
+      }
+    };
+    recalcular();
+    window.addEventListener("resize", recalcular);
+    return () => window.removeEventListener("resize", recalcular);
+  }, []);
+
+  // Timer local controlado por el dibujante
+  useEffect(() => {
+    if (!esMiTurno || tiempo <= 0) return;
+    const interval = setInterval(() => setTiempo((t) => t - 1), 1000);
+    return () => clearInterval(interval);
+  }, [esMiTurno, tiempo]);
+
+  // Pedir palabra a MySQL (API Backend) e iniciar turno
+  const iniciarSiguienteTurno = async () => {
+    try {
+      const res = await fetch(`http://localhost:4000/api/palabra?id_categoria=${idCategoria}`);
+      const data = await res.json();
+      const palabraBD = data.palabra;
+
+      const datosTurno = {
+        dibujanteUsuario: usuario,
+        ronda,
+        palabra: palabraBD,
+      };
+
+      socket.emit("nuevo_turno", { codigoSala: codigo, datosTurno });
+      socket.emit("limpiar_lienzo", codigo);
+    } catch (err) {
+      console.error("Error pidiendo palabra a la BD:", err);
+    }
   };
 
-  const handleIniciarPartida = () => {
-    socket.emit("iniciar_partida", { codigoSala: codigo });
+  // Enviar y validar mensajes en el Frontend
+  const handleEnviarMensaje = (e) => {
+    e.preventDefault();
+    if (!nuevoMensaje.trim()) return;
+
+    const intento = nuevoMensaje.trim().toUpperCase();
+
+    // Comprobación local de la palabra
+    if (!esMiTurno && palabraSecreta && intento === palabraSecreta) {
+      socket.emit("enviar_mensaje", {
+        codigoSala: codigo,
+        usuario: "ARGENTILLO",
+        mensaje: `🎉 ¡${usuario} ADIVINÓ LA PALABRA! (${palabraSecreta})`,
+        tipo: "exito",
+      });
+
+      setJugadores((prev) =>
+        prev.map((j) => (j.usuario === usuario ? { ...j, puntos: j.puntos + 100 } : j))
+      );
+    } else {
+      socket.emit("enviar_mensaje", {
+        codigoSala: codigo,
+        usuario,
+        mensaje: nuevoMensaje.trim(),
+        tipo: "normal",
+      });
+    }
+
+    setNuevoMensaje("");
   };
 
+  // Trazo en Canvas
   const empezarDibujo = (e) => {
     if (!esMiTurno) return;
     setDibujando(true);
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const datosTrazo = { x, y, color, inicio: true };
+    const datosTrazo = { x: e.clientX - rect.left, y: e.clientY - rect.top, color, inicio: true };
     dibujarEnCanvas(datosTrazo);
     socket.emit("dibujar", { codigoSala: codigo, datosTrazo });
   };
@@ -115,25 +167,16 @@ function JuegoContent() {
     if (!dibujando || !esMiTurno) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const datosTrazo = { x, y, color, inicio: false };
+    const datosTrazo = { x: e.clientX - rect.left, y: e.clientY - rect.top, color, inicio: false };
     dibujarEnCanvas(datosTrazo);
     socket.emit("dibujar", { codigoSala: codigo, datosTrazo });
-  };
-
-  const terminarDibujo = () => {
-    setDibujando(false);
   };
 
   const dibujarEnCanvas = ({ x, y, color, inicio }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
     ctx.strokeStyle = color;
@@ -148,135 +191,92 @@ function JuegoContent() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-900 text-white p-4 flex flex-col items-center">
-      <header className="w-full max-w-5xl glass-panel p-4 mb-4 flex flex-wrap justify-between items-center gap-4">
+    <main className="min-h-screen bg-slate-900 text-white p-2 md:p-4 flex flex-col items-center w-full">
+      <header className="w-full glass-panel p-4 mb-4 flex flex-wrap justify-between items-center gap-4">
         <div>
-          <span className="text-xs text-amber-400 font-bold uppercase tracking-wider">
-            Ronda {rondaInfo.actual} / {rondaInfo.total}
-          </span>
+          <span className="text-xs text-amber-400 font-bold uppercase">Ronda {ronda}</span>
           <h1 className="text-lg font-black">
             {esMiTurno ? (
               <span className="text-green-400">DIBUJÁ: {palabraSecreta}</span>
             ) : (
               <span className="text-slate-200">
-                {dibujanteNombre ? `Dibuja ${dibujanteNombre}: ${"_ ".repeat(longitudPalabra)}` : "Esperando inicio..."}
+                {dibujanteUsuario ? `Dibuja ${dibujanteUsuario}: ` : "Esperando inicio... "}
+                <span className="text-amber-400 font-mono tracking-widest">
+                  {palabraSecreta ? "_ ".repeat(palabraSecreta.length) : ""}
+                </span>
               </span>
             )}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700">
-          <span className="text-[10px] text-slate-400 uppercase font-bold">Categoría:</span>
-          <span className="text-xs font-black text-amber-400">{categoriaNombre}</span>
-        </div>
-
-        <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-slate-700">
-          <span className="text-xs text-slate-400">CÓDIGO:</span>
-          <span className="text-lg font-mono font-bold text-amber-400">{codigo}</span>
-          <button
-            onClick={copiarCodigo}
-            className="text-xs bg-amber-400/10 border border-amber-400/30 text-amber-400 px-2 py-1 rounded hover:bg-amber-400/20 font-semibold"
-          >
-            {copiado ? "¡Copiado!" : "Copiar"}
-          </button>
-        </div>
-
         <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-slate-700">
           <span className="text-xs text-slate-400">TIEMPO:</span>
-          <span className={`text-2xl font-mono font-black ${tiempo <= 10 ? "timer-critical" : "text-amber-400"}`}>
-            {tiempo}s
-          </span>
+          <span className="text-2xl font-mono font-black text-amber-400">{tiempo}s</span>
         </div>
 
-        <button
-          onClick={handleIniciarPartida}
-          className="btn-sol text-xs uppercase px-4 py-2 rounded-lg font-bold"
-        >
-          Iniciar / Siguiente Turno 🚀
+        <button onClick={iniciarSiguienteTurno} className="btn-sol text-xs uppercase px-4 py-2 rounded-lg font-bold">
+          Iniciar Mi Turno 🚀
         </button>
       </header>
 
-      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="w-full flex flex-col lg:flex-row gap-4 flex-1">
         {/* Jugadores */}
-        <div className="glass-panel p-4">
+        <div className="glass-panel p-4 lg:w-1/5 h-fit">
           <h2 className="text-sm font-bold text-amber-400 mb-3 border-b border-slate-700 pb-2">Jugadores</h2>
           <ul className="space-y-2">
-            {jugadores.map((j) => (
-              <li key={j.id} className={`flex justify-between items-center p-2 rounded-lg text-sm bg-slate-900/80 ${j.usuario === dibujanteNombre ? "border-l-4 border-amber-400" : ""}`}>
-                <span>{j.usuario} {j.usuario === dibujanteNombre ? "✏️" : ""}</span>
+            {jugadores.map((j, i) => (
+              <li key={i} className={`flex justify-between items-center p-2 rounded-lg text-sm bg-slate-900/80 ${j.usuario === dibujanteUsuario ? "border-l-4 border-amber-400" : ""}`}>
+                <span>{j.usuario} {j.usuario === dibujanteUsuario ? "✏️" : ""}</span>
                 <span className="text-amber-400 font-bold">{j.puntos} pts</span>
               </li>
             ))}
           </ul>
         </div>
 
-        {/* Canvas de dibujo */}
-        <div className="md:col-span-2 glass-panel p-4 flex flex-col items-center">
-          <div className="canvas-wrapper">
+        {/* Canvas */}
+        <div className="glass-panel p-4 flex-1 flex flex-col items-center w-full">
+          <div className="canvas-wrapper w-full">
             <canvas
               ref={canvasRef}
-              width={400}
-              height={350}
               onMouseDown={empezarDibujo}
-              onMouseUp={terminarDibujo}
-              onMouseLeave={terminarDibujo}
+              onMouseUp={() => setDibujando(false)}
+              onMouseLeave={() => setDibujando(false)}
               onMouseMove={hacerTrazo}
-              className={`bg-white rounded-lg touch-none ${esMiTurno ? "cursor-crosshair" : "cursor-not-allowed opacity-90"}`}
+              className={`w-full bg-white rounded-lg touch-none ${esMiTurno ? "cursor-crosshair" : "cursor-not-allowed opacity-90"}`}
             />
           </div>
 
           {esMiTurno ? (
-            <div className="flex flex-wrap items-center justify-between w-full mt-3 gap-2 px-2 py-2 bg-slate-900/80 rounded-xl border border-slate-700/80">
+            <div className="flex items-center justify-between w-full mt-3 gap-2 px-3 py-2 bg-slate-900/80 rounded-xl border border-slate-700/80">
               <div className="flex items-center gap-1.5">
-                {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308", "#a855f7", "#f97316"].map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    style={{ backgroundColor: c }}
-                    className={`color-swatch ${color === c ? "active" : ""}`}
-                  />
+                {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308", "#a855f7"].map((c) => (
+                  <button key={c} type="button" onClick={() => setColor(c)} style={{ backgroundColor: c }} className={`color-swatch ${color === c ? "active" : ""}`} />
                 ))}
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-8 h-8 rounded-full border-none cursor-pointer bg-transparent"
-                />
               </div>
-              <button
-                type="button"
-                onClick={() => socket.emit("limpiar_lienzo", codigo)}
-                className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 px-3 py-1.5 rounded-lg font-bold"
-              >
+              <button type="button" onClick={() => socket.emit("limpiar_lienzo", codigo)} className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold">
                 🗑️ Limpiar
               </button>
             </div>
           ) : (
-            <div className="mt-3 py-1.5 px-4 bg-slate-900/50 rounded-lg text-xs text-slate-400 text-center font-medium border border-slate-800">
+            <div className="mt-3 py-1.5 px-4 bg-slate-900/50 rounded-lg text-xs text-slate-400 text-center font-medium border border-slate-800 w-full">
               👀 Mirá atentamente el dibujo e intentá adivinar la palabra
             </div>
           )}
         </div>
 
         {/* Chat */}
-        <div className="glass-panel p-4 flex flex-col justify-between h-[420px]">
+        <div className="glass-panel p-4 lg:w-1/4 flex flex-col justify-between h-[480px]">
           <h2 className="text-sm font-bold text-amber-400 border-b border-slate-700 pb-2">Chat / Respuestas</h2>
-          <div className="flex-1 overflow-y-auto space-y-2 my-2 pr-1 text-xs chat-messages-container">
+          <div className="flex-1 overflow-y-auto space-y-2 my-2 text-xs">
             {mensajes.map((m, idx) => (
-              <div key={idx} className={`p-2 rounded-lg chat-bubble ${m.tipo === "exito" ? "bg-green-500/20 text-green-300 border border-green-500/40 font-bold" : "bg-slate-900 text-slate-300"}`}>
+              <div key={idx} className={`p-2 rounded-lg ${m.tipo === "exito" ? "bg-green-500/20 text-green-300 font-bold" : "bg-slate-900 text-slate-300"}`}>
                 <span className="text-amber-400 font-bold">{m.usuario}: </span>
                 <span>{m.mensaje}</span>
               </div>
             ))}
           </div>
 
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (!nuevoMensaje.trim()) return;
-            socket.emit("enviar_mensaje", { codigoSala: codigo, usuario, mensaje: nuevoMensaje.trim() });
-            setNuevoMensaje("");
-          }} className="flex gap-2">
+          <form onSubmit={handleEnviarMensaje} className="flex gap-2">
             <input
               type="text"
               value={nuevoMensaje}

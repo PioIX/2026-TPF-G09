@@ -1,15 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
-/* ==========================================
-   VARIABLES Y PALETA ARGENTINA GAMING
-   ========================================== */
 :root {
   --celeste-arg: #74acdf;
   --celeste-glow: rgba(116, 172, 223, 0.4);
   --sol-dorado: #fbc02d;
-  --sol-glow: rgba(251, 192, 45, 0.5);
   --bg-dark: #0a0e17;
   --panel-bg: rgba(18, 24, 38, 0.75);
   --panel-border: rgba(255, 255, 255, 0.08);
@@ -28,11 +21,7 @@ body {
   overflow-x: hidden;
 }
 
-/* ==========================================
-   COMPONENTES UI REUTILIZABLES (GLASS UI)
-   ========================================== */
 @layer components {
-  /* Paneles traslúcidos con efecto vidrio */
   .glass-panel {
     background: var(--panel-bg);
     backdrop-filter: blur(16px);
@@ -42,7 +31,6 @@ body {
     border-radius: 1.25rem;
   }
 
-  /* Botones principales con efecto 3D Arcade */
   .btn-argentina {
     background: linear-gradient(135deg, #74acdf 0%, #3b82f6 100%);
     color: #ffffff;
@@ -56,11 +44,6 @@ body {
     box-shadow: 0 6px 0 #1d4ed8, 0 15px 25px -5px rgba(59, 130, 246, 0.6);
   }
 
-  .btn-argentina:active {
-    transform: translateY(2px);
-    box-shadow: 0 2px 0 #1d4ed8, 0 5px 10px -5px rgba(59, 130, 246, 0.4);
-  }
-
   .btn-sol {
     background: linear-gradient(135deg, #fde047 0%, #eab308 100%);
     color: #0f172a;
@@ -71,15 +54,9 @@ body {
 
   .btn-sol:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 0 #ca8a04, 0 15px 25px -5px rgba(234, 179, 8, 0.6);
+    box-shadow: 0 6px 0 #ca8a04;
   }
 
-  .btn-sol:active {
-    transform: translateY(2px);
-    box-shadow: 0 2px 0 #ca8a04;
-  }
-
-  /* Inputs profesionales */
   .input-argentillo {
     background: rgba(15, 23, 42, 0.8);
     border: 1.5px solid rgba(255, 255, 255, 0.12);
@@ -95,16 +72,11 @@ body {
   }
 }
 
-/* ==========================================
-   CANVAS DE DIBUJO PROFESIONAL
-   ========================================== */
 .canvas-wrapper {
   position: relative;
   border-radius: 1rem;
   overflow: hidden;
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.8),
-    0 0 0 2px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 0 2px rgba(255, 255, 255, 0.1);
   background-color: #ffffff;
 }
 
@@ -119,7 +91,7 @@ canvas {
   height: 2.2rem;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.2);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease;
   cursor: pointer;
 }
 
@@ -133,45 +105,15 @@ canvas {
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.8);
 }
 
-/* ==========================================
-   ANIMACIONES DE JUEGO & FEEDBACK
-   ========================================== */
-
-/* Error al adivinar (sacudida) */
-@keyframes shakeError {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-6px); }
-  75% { transform: translateX(6px); }
-}
-
-.animate-shake {
-  animation: shakeError 0.3s ease-in-out;
-}
-
-/* Acierto o Mensaje Especial */
-@keyframes popSuccess {
-  0% { transform: scale(0.9); opacity: 0; }
-  50% { transform: scale(1.03); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.animate-pop {
-  animation: popSuccess 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-/* Reloj Crítico (< 10 Segundos) */
 @keyframes timerWarning {
   0%, 100% { transform: scale(1); color: #ef4444; }
-  50% { transform: scale(1.12); color: #f87171; text-shadow: 0 0 12px rgba(239, 68, 68, 0.8); }
+  50% { transform: scale(1.12); color: #f87171; }
 }
 
 .timer-critical {
   animation: timerWarning 0.5s infinite ease-in-out;
 }
 
-/* ==========================================
-   PERSONALIZACIÓN DE SCROLLBARS
-   ========================================== */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -184,8 +126,4 @@ canvas {
 ::-webkit-scrollbar-thumb {
   background: rgba(51, 65, 85, 0.8);
   border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--celeste-arg);
 }

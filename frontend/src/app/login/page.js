@@ -1,119 +1,98 @@
 'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import './login.css';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [usuario, setUsuario] = useState("");
-  const [clave, setClave] = useState("");
-  const [error, setError] = useState("");
+  const [formData, setFormData] = useState({ usuario: '', password: '' });
+  const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-
-    if (!usuario.trim() || !clave.trim()) {
-      setError("Por favor completá todos los campos.");
-      return;
-    }
-
+    setError('');
     setCargando(true);
 
     try {
-      const response = await fetch("http://localhost:4000/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          usuario: usuario.trim(),
-          password: clave.trim(),
-        }),
+      const res = await fetch('http://localhost:4000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch {
-        throw new Error("Respuesta inválida del servidor");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.mensaje || 'Error al iniciar sesión');
       }
 
-      if (response.ok) {
-        const nombreUsuario = data.usuario?.usuario || usuario.trim();
-        localStorage.setItem("usuario", JSON.stringify(data.usuario));
-        router.push(`/sala?usuario=${encodeURIComponent(nombreUsuario)}`);
-      } else {
-        setError(data.mensaje || "Credenciales incorrectas.");
-      }
+      // Guardar sesión localmente
+      localStorage.setItem('usuario', data.usuario.usuario);
+      router.push('/sala');
     } catch (err) {
-      console.error("🔴 Error en login:", err);
-      setError("No se pudo conectar con el servidor backend");
+      setError(err.message);
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-4">
-      <div className="bg-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-700">
-        <h1 className="text-3xl font-black text-center text-amber-400 mb-2 tracking-wide">
-          ARGENTILLO 🎨
-        </h1>
-        <p className="text-slate-400 text-center mb-6 text-sm">
-          Iniciá sesión para entrar a jugar
-        </p>
+    <main className="login-container">
+      <div className="login-card">
+        
+        <div className="login-header">
+          <h1 className="login-title">ARGENTILLO 🎨</h1>
+          <p className="login-subtitle">¡Bienvenido de nuevo!</p>
+        </div>
+
+        <h2 className="login-form-title">Iniciar Sesión</h2>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/40 text-red-400 text-sm p-3 rounded-xl mb-4 text-center font-medium">
-            {error}
+          <div className="login-error">
+            ⚠️ {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1 text-slate-300">
-              Usuario o Email
-            </label>
+        <form onSubmit={handleSubmit}>
+          <div className="login-group">
+            <label className="login-label">Usuario o Email</label>
             <input
               type="text"
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-              placeholder="Ingresá tu usuario"
               required
-              className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-white placeholder-slate-500 text-sm transition-all"
+              placeholder="EJ: ElDiego10"
+              value={formData.usuario}
+              onChange={(e) => setFormData({ ...formData, usuario: e.target.value })}
+              className="login-input"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold mb-1 text-slate-300">
-              Contraseña
-            </label>
+          <div className="login-group">
+            <label className="login-label">Contraseña</label>
             <input
               type="password"
-              value={clave}
-              onChange={(e) => setClave(e.target.value)}
-              placeholder="••••••••"
               required
-              className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400 text-white placeholder-slate-500 text-sm transition-all"
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="login-input"
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={cargando}
-            className="w-full py-3 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 disabled:bg-slate-700 text-slate-950 font-bold rounded-xl transition-all duration-200 shadow-lg shadow-amber-400/10 text-sm mt-2"
-          >
-            {cargando ? "Ingresando..." : "Iniciar Sesión"}
+          <button type="submit" disabled={cargando} className="login-btn">
+            {cargando ? 'Entrando...' : 'Entrar 🚀'}
           </button>
         </form>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
-          ¿No tenés una cuenta?{" "}
-          <Link href="/registro" className="text-amber-400 hover:underline font-semibold">
+        <div className="login-footer">
+          ¿No tenés cuenta?{' '}
+          <Link href="/registro" className="login-link">
             Registrate acá
           </Link>
-        </p>
+        </div>
+
       </div>
     </main>
   );

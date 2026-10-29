@@ -1,123 +1,108 @@
 'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import './registro.css';
 
 export default function RegistroPage() {
   const router = useRouter();
-  const [usuario, setUsuario] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [formData, setFormData] = useState({ usuario: '', email: '', password: '' });
+  const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setError('');
     setCargando(true);
 
     try {
-      const res = await fetch("http://localhost:4000/api/registro", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuario, email, password }),
+      const res = await fetch('http://localhost:4000/api/registro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
 
       const data = await res.json();
 
-      if (res.ok) {
-        router.push("/login");
-      } else {
-        setError(data.mensaje || "Error al registrarse");
+      if (!res.ok) {
+        throw new Error(data.mensaje || 'Error al registrarse');
       }
-    } catch {
-      setError("No se pudo conectar con el servidor.");
+
+      router.push('/login');
+    } catch (err) {
+      setError(err.message);
     } finally {
       setCargando(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="glass-panel p-8 w-full max-w-md border border-slate-700/50 shadow-2xl relative overflow-hidden">
+    <main className="registro-container">
+      <div className="registro-card">
         
-        {/* Glow decorativo de fondo */}
-        <div className="absolute -top-10 -right-10 w-32 h-32 bg-sky-500/20 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="text-center mb-6">
-          <div className="inline-block bg-amber-400/10 border border-amber-400/30 px-3 py-1 rounded-full text-xs font-bold text-amber-400 mb-2">
-            🇦🇷 ¡Sumate a la comunidad!
-          </div>
-          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-amber-300 to-sky-400">
-            CREAR CUENTA
-          </h1>
+        <div className="registro-header">
+          <h1 className="registro-title">ARGENTILLO 🎨</h1>
+          <p className="registro-subtitle">¡Sumate a la comunidad!</p>
         </div>
 
+        <h2 className="registro-form-title">Crear Cuenta</h2>
+
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl mb-4 text-center animate-shake font-semibold">
-            {error}
+          <div className="registro-error">
+            ⚠️ {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">
-              Usuario
-            </label>
+        <form onSubmit={handleSubmit}>
+          <div className="registro-group">
+            <label className="registro-label">Usuario</label>
             <input
               type="text"
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-              placeholder="Ej: ElDiego10"
               required
-              className="w-full px-4 py-2.5 input-argentillo text-sm"
+              placeholder="EJ: ElDiego10"
+              value={formData.usuario}
+              onChange={(e) => setFormData({ ...formData, usuario: e.target.value })}
+              className="registro-input"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">
-              Email
-            </label>
+          <div className="registro-group">
+            <label className="registro-label">Email</label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@email.com"
               required
-              className="w-full px-4 py-2.5 input-argentillo text-sm"
+              placeholder="tu@email.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className="registro-input"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1">
-              Contraseña
-            </label>
+          <div className="registro-group">
+            <label className="registro-label">Contraseña</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
               required
-              className="w-full px-4 py-2.5 input-argentillo text-sm"
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="registro-input"
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={cargando}
-            className="w-full py-3 btn-argentina rounded-xl text-sm uppercase tracking-wider mt-2 disabled:opacity-50"
-          >
-            {cargando ? "Registrando..." : "Registrarme 🚀"}
+          <button type="submit" disabled={cargando} className="registro-btn">
+            {cargando ? 'Registrando...' : 'Registrarme 🚀'}
           </button>
         </form>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
-          ¿Ya tenés cuenta?{" "}
-          <Link href="/login" className="text-amber-400 hover:underline font-bold">
+        <div className="registro-footer">
+          ¿Ya tenés cuenta?{' '}
+          <Link href="/login" className="registro-link">
             Iniciá sesión
           </Link>
-        </p>
+        </div>
+
       </div>
     </main>
   );

@@ -1,135 +1,138 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap');
-
 .registro-container {
   min-height: 100vh;
-  background: radial-gradient(circle at top, #fbbf24 0%, #d97706 40%, #0f172a 100%);
-  font-family: 'Fredoka', sans-serif;
+  width: 100%;
+  background-color: #0b0f19;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 1.5rem;
 }
 
 .registro-card {
-  background: #ffffff;
-  color: #1e293b;
-  border: 4px solid #fbbf24;
-  border-radius: 24px;
-  padding: 35px 30px;
-  max-width: 420px;
   width: 100%;
-  box-shadow: 0 8px 0px #d97706, 0 15px 25px rgba(0, 0, 0, 0.3);
-  text-align: center;
+  max-width: 576px;
+  background-color: #131b2e;
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
-.registro-card h1 {
-  font-size: 2.2rem;
-  color: #d97706;
-  margin: 0 0 5px;
-  text-shadow: 2px 2px 0px #fef3c7;
+.registro-header {
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 1.25rem;
+}
+
+.registro-title {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
 }
 
 .registro-subtitle {
-  color: #64748b;
-  font-size: 1rem;
-  margin-bottom: 25px;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.registro-form-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 1.5rem;
+}
+
+.registro-error {
+  margin-bottom: 1.5rem;
+  padding: 0.875rem;
+  border-radius: 0.75rem;
+  background-color: rgba(127, 29, 29, 0.4);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
-.registro-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  text-align: left;
+.registro-group {
+  margin-bottom: 1.25rem;
 }
 
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.registro-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #cbd5e1;
+  margin-bottom: 0.5rem;
 }
 
-.input-group label {
-  color: #d97706;
-  font-size: 0.95rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.registro-form input {
-  background: #f8fafc;
-  border: 2px solid #cbd5e1;
-  border-radius: 12px;
-  padding: 12px 14px;
-  color: #0f172a;
-  font-family: 'Fredoka', sans-serif;
+.registro-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: #0b0f19;
+  border: 1px solid #2a364f;
+  border-radius: 0.75rem;
+  color: #ffffff;
   font-size: 1rem;
   outline: none;
   transition: all 0.2s ease;
 }
 
-.registro-form input:focus {
+.registro-input::placeholder {
+  color: #64748b;
+}
+
+.registro-input:focus {
   border-color: #fbbf24;
-  background: #ffffff;
+  box-shadow: 0 0 0 1px #fbbf24;
 }
 
-.btn-registro-submit {
-  margin-top: 10px;
-  padding: 14px;
-  background: #fbbf24;
-  color: #0f172a;
-  border: 3px solid #d97706;
-  border-radius: 14px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  font-family: 'Fredoka', sans-serif;
+.registro-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background-color: #fbbf24;
+  color: #0b0f19;
+  font-weight: 900;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: none;
+  border-radius: 0.75rem;
   cursor: pointer;
-  box-shadow: 0 4px 0px #d97706;
-  transition: all 0.1s ease;
+  transition: all 0.2s ease;
+  margin-top: 0.5rem;
 }
 
-.btn-registro-submit:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 0px #d97706;
+.registro-btn:hover {
+  background-color: #fcd34d;
 }
 
-.btn-registro-submit:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0px #d97706;
-}
-
-.status-msg {
-  font-weight: 700;
-  font-size: 0.9rem;
-  margin-top: 15px;
-  padding: 10px;
-  border-radius: 10px;
-}
-
-.status-msg.success {
-  color: #166534;
-  background: #dcfce7;
-  border: 2px solid #86efac;
-}
-
-.status-msg.error {
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 2px solid #fca5a5;
+.registro-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .registro-footer {
-  margin-top: 20px;
-  color: #64748b;
-  font-size: 0.95rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #1e293b;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  text-align: center;
 }
 
-.registro-footer a {
-  color: #0284c7;
+.registro-link {
+  color: #fbbf24;
   font-weight: 700;
   text-decoration: none;
+  margin-left: 0.25rem;
 }
 
-.registro-footer a:hover {
+.registro-link:hover {
   text-decoration: underline;
 }

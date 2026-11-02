@@ -172,3 +172,53 @@ const PORT = process.env.PORT || 4000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Servidor backend escuchando en http://localhost:${PORT}`);
 });
+// Endpoint de Login
+app.post("/api/login", async (req, res) => {
+  const { usuario, password } = req.body;
+
+  try {
+    const [rows] = await db.query(
+      "SELECT id_usuario, usuario, es_admin FROM Usuario WHERE usuario = ? AND password = ?",
+      [usuario, password]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ mensaje: "Usuario o contraseña incorrectos" });
+    }
+
+    const user = rows[0];
+
+    return res.json({
+      mensaje: "Login exitoso",
+      usuario: {
+        id: user.id_usuario,
+        usuario: user.usuario,
+        esAdmin: Boolean(user.es_admin)
+      }
+    });
+  } catch (error) {
+    console.error("🔴 Error en login:", error);
+    return res.status(500).json({ mensaje: "Error interno del servidor" });
+  }
+});
+
+// Endpoint para que el Admin agregue palabras
+app.post("/api/admin/palabras", async (req, res) => {
+  const { palabra, id_categoria } = req.body;
+
+  if (!palabra || !id_categoria) {
+    return res.status(400).json({ mensaje: "Faltan datos obligatorios" });
+  }
+
+  try {
+    await db.query(
+      "INSERT INTO Palabra (palabra, id_categoria) VALUES (?, ?)",
+      [palabra.trim().toUpperCase(), id_categoria]
+    );
+
+    return res.json({ mensaje: "Palabra cargada con éxito" });
+  } catch (error) {
+    console.error("🔴 Error agregando palabra:", error);
+    return res.status(500).json({ mensaje: "Error al guardar la palabra" });
+  }
+});

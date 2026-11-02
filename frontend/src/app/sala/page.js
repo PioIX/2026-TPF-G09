@@ -153,3 +153,12 @@ useEffect(() => {
   const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
   setEsAdmin(adminLocal);
 }, []);
+{esAdmin && (
+  <button 
+    onClick={() => router.push('/admin')} 
+    className="sala-btn-secondary"
+    style={{ marginBottom: '1.25rem', backgroundColor: '#a855f7', color: '#ffffff' }}
+  >
+    ⚙️ PANEL DE ADMINISTRADOR
+  </button>
+)}

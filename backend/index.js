@@ -52,21 +52,24 @@ app.get("/api/palabra", async (req, res) => {
   const { id_categoria } = req.query;
 
   try {
-    // Aseguramos nombres de tabla en minúscula para evitar problemas en Linux/Windows
-    let query = "SELECT p.palabra FROM palabra p";
+    let query = "SELECT p.palabra FROM Palabra p";
     let params = [];
 
-    // Limpieza de string del parámetro
-    const cat = id_categoria ? String(id_categoria).trim() : null;
-
-    if (cat && cat !== "TODAS" && cat !== "null" && cat !== "undefined") {
-      // Validar si es un número real y no un string vacío
-      if (!isNaN(cat) && cat.length > 0) {
+    // Si viene una categoría válida (distinta de TODAS / indefinida)
+    if (
+      id_categoria &&
+      id_categoria !== "TODAS" &&
+      id_categoria !== "null" &&
+      id_categoria !== "undefined"
+    ) {
+      if (!isNaN(id_categoria)) {
+        // Filtrar por ID de la categoría (ej: 1, 2, 3)
         query += " WHERE p.id_categoria = ?";
-        params.push(Number(cat));
+        params.push(Number(id_categoria));
       } else {
+        // Filtrar por Nombre de la categoría (ej: "futbol", "deportes")
         query += " INNER JOIN categoria c ON p.id_categoria = c.id_categoria WHERE LOWER(c.nombre) LIKE LOWER(?)";
-        params.push(`%${cat}%`);
+        params.push(`%${id_categoria}%`);
       }
     }
 
@@ -78,8 +81,7 @@ app.get("/api/palabra", async (req, res) => {
       return res.json({ palabra: rows[0].palabra.trim().toUpperCase() });
     }
   } catch (error) {
-    // Imprimimos el error completo para saber exactamente qué falló en la consola
-    console.error("🔴 Error en /api/palabra:", error);
+    console.error("🔴 Error al filtrar palabra:", error.message);
   }
 
   // Fallback si la categoría elegida no tiene palabras cargadas en la BD

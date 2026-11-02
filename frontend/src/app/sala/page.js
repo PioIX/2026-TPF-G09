@@ -147,3 +147,9 @@ export default function SalaPage() {
     </main>
   );
 }
+const [esAdmin, setEsAdmin] = useState(false);
+
+useEffect(() => {
+  const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
+  setEsAdmin(adminLocal);
+}, []);

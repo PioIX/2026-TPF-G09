@@ -97,3 +97,8 @@ export default function LoginPage() {
     </main>
   );
 }
+// Al recibir respuesta exitosa del backend:
+localStorage.setItem('usuario', data.usuario.usuario);
+localStorage.setItem('esAdmin', JSON.stringify(data.usuario.esAdmin));
+
+router.push('/sala');

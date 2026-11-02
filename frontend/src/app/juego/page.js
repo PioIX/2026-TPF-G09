@@ -221,7 +221,7 @@ function JuegoContent() {
         {/* CÓDIGO DE SALA VISIBLE */}
         <div className="flex items-center gap-3 bg-slate-800 px-4 py-2 rounded-xl border border-sky-500/40">
           <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-widest">CÓDIGO DE SALA</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-widest">CÓDIGO DE SALA: </span>
             <span className="text-xl font-black text-amber-300 font-mono tracking-widest">{codigo || '----'}</span>
           </div>
           <button

@@ -10,6 +10,7 @@ let socket;
 export default function SalaPage() {
   const router = useRouter();
   const [usuario, setUsuario] = useState('');
+  const [esAdmin, setEsAdmin] = useState(false);
   const [nombreSala, setNombreSala] = useState('');
   const [categoria, setCategoria] = useState('TODAS');
   const [codigoIngreso, setCodigoIngreso] = useState('');
@@ -18,9 +19,15 @@ export default function SalaPage() {
   const [entrando, setEntrando] = useState(false);
 
   useEffect(() => {
+    // 1. Recuperar información del usuario
     const userLocal = localStorage.getItem('usuario') || 'JugadorAnonimo';
     setUsuario(userLocal);
 
+    // 2. Recuperar permisos de administrador (RBAC)
+    const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
+    setEsAdmin(Boolean(adminLocal));
+
+    // 3. Inicializar Socket y cargar categorías desde la BD
     socket = io('http://localhost:4000');
 
     fetch('http://localhost:4000/api/categorias')
@@ -65,6 +72,7 @@ export default function SalaPage() {
 
   const handleCerrarSesion = () => {
     localStorage.removeItem('usuario');
+    localStorage.removeItem('esAdmin');
     router.push('/login');
   };
 
@@ -82,6 +90,17 @@ export default function SalaPage() {
             Salir
           </button>
         </div>
+
+        {/* BOTÓN PANEL DE ADMINISTRADOR (RBAC) */}
+        {esAdmin && (
+          <button 
+            onClick={() => router.push('/admin')} 
+            className="sala-btn-secondary"
+            style={{ marginBottom: '1.25rem', backgroundColor: '#a855f7', color: '#ffffff' }}
+          >
+            ⚙️ PANEL DE ADMINISTRADOR
+          </button>
+        )}
 
         {/* Sección Crear Sala */}
         <form onSubmit={handleCrearSala}>
@@ -147,18 +166,3 @@ export default function SalaPage() {
     </main>
   );
 }
-const [esAdmin, setEsAdmin] = useState(false);
-
-useEffect(() => {
-  const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
-  setEsAdmin(adminLocal);
-}, []);
-{esAdmin && (
-  <button 
-    onClick={() => router.push('/admin')} 
-    className="sala-btn-secondary"
-    style={{ marginBottom: '1.25rem', backgroundColor: '#a855f7', color: '#ffffff' }}
-  >
-    ⚙️ PANEL DE ADMINISTRADOR
-  </button>
-)}

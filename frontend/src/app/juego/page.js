@@ -22,6 +22,7 @@ function JuegoContent() {
   const [dibujanteUsuario, setDibujanteUsuario] = useState("");
   const [palabraSecreta, setPalabraSecreta] = useState("");
   const [esMiTurno, setEsMiTurno] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   // Canvas
   const canvasRef = useRef(null);
@@ -38,6 +39,7 @@ function JuegoContent() {
 
     socket.emit("unirse_sala", { codigoSala: codigo, usuario });
 
+    // Jugador unido a la lista
     socket.on("jugador_unido", (nuevoJugador) => {
       setJugadores((prev) => {
         if (prev.some((j) => j.usuario === nuevoJugador.usuario)) return prev;
@@ -45,9 +47,11 @@ function JuegoContent() {
       });
     });
 
+    // Chat y Trazo de dibujo
     socket.on("mensaje_recibido", (msg) => setMensajes((prev) => [...prev, msg]));
     socket.on("dibujar", (datosTrazo) => dibujarEnCanvas(datosTrazo));
 
+    // Limpiar Canvas
     socket.on("limpiar_lienzo", () => {
       const canvas = canvasRef.current;
       if (canvas) {
@@ -56,18 +60,23 @@ function JuegoContent() {
       }
     });
 
-    // Evento donde se recibe el nuevo turno y la palabra desde la BD
-    socket.on("turno_iniciado", (datos) => {
-      setTiempo(60);
-      setRonda(datos.ronda);
-      setDibujanteUsuario(datos.dibujanteUsuario);
-      
-      // Guardamos la palabra en estado para poder validar el chat
-      setPalabraSecreta(datos.palabra || "");
+    // Recibir la palabra secreta (Únicamente enviada al dibujante)
+    socket.on("tu_palabra", ({ palabra }) => {
+      setPalabraSecreta(palabra);
+      setEsMiTurno(true);
+    });
 
-      // Evaluamos si el usuario actual es quien dibuja
-      const esDibujante = datos.dibujanteUsuario.trim().toLowerCase() === usuario.trim().toLowerCase();
-      setEsMiTurno(esDibujante);
+    // Notificación global de inicio de turno
+    socket.on("turno_iniciado", (datos) => {
+      setTiempo(datos.duracion || 60);
+      setRonda(datos.ronda || 1);
+      const nombreDibujante = datos.dibujanteNombre || datos.dibujanteUsuario || "Dibujante";
+      setDibujanteUsuario(nombreDibujante);
+
+      if (nombreDibujante.trim().toLowerCase() !== usuario.trim().toLowerCase()) {
+        setEsMiTurno(false);
+        setPalabraSecreta("");
+      }
     });
 
     return () => {
@@ -75,6 +84,7 @@ function JuegoContent() {
       socket.off("mensaje_recibido");
       socket.off("dibujar");
       socket.off("limpiar_lienzo");
+      socket.off("tu_palabra");
       socket.off("turno_iniciado");
     };
   }, [codigo, usuario, router]);
@@ -93,42 +103,39 @@ function JuegoContent() {
     return () => window.removeEventListener("resize", recalcular);
   }, []);
 
-  // Timer local controlado por el dibujante
+  // Timer del turno
   useEffect(() => {
     if (!esMiTurno || tiempo <= 0) return;
     const interval = setInterval(() => setTiempo((t) => t - 1), 1000);
     return () => clearInterval(interval);
   }, [esMiTurno, tiempo]);
 
-  // Pedir palabra a MySQL (API Backend) e iniciar turno
-  const iniciarSiguienteTurno = async () => {
-    try {
-      const res = await fetch(`http://localhost:4000/api/palabra?id_categoria=${idCategoria}`);
-      const data = await res.json();
-      const palabraBD = data.palabra;
-
-      const datosTurno = {
-        dibujanteUsuario: usuario,
-        ronda,
-        palabra: palabraBD,
-      };
-
-      socket.emit("nuevo_turno", { codigoSala: codigo, datosTurno });
-      socket.emit("limpiar_lienzo", codigo);
-    } catch (err) {
-      console.error("Error pidiendo palabra a la BD:", err);
-    }
+  // Iniciar Turno de forma segura (Backend obtiene la palabra de MySQL)
+  const handleIniciarTurno = () => {
+    if (!socket || !codigo) return;
+    socket.emit("iniciar_turno", {
+      codigoSala: codigo,
+      idCategoria: idCategoria || "TODAS",
+      ronda
+    });
   };
 
-  // Enviar y validar mensajes en el Frontend
+  // Copiar código de sala al portapapeles
+  const handleCopiarCodigo = () => {
+    if (!codigo) return;
+    navigator.clipboard.writeText(codigo);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
+  // Enviar y validar respuestas en el Chat
   const handleEnviarMensaje = (e) => {
     e.preventDefault();
     if (!nuevoMensaje.trim()) return;
 
     const intento = nuevoMensaje.trim().toUpperCase();
 
-    // Comprobación local de la palabra
-    if (!esMiTurno && palabraSecreta && intento === palabraSecreta) {
+    if (!esMiTurno && palabraSecreta && intento === palabraSecreta.toUpperCase()) {
       socket.emit("enviar_mensaje", {
         codigoSala: codigo,
         usuario: "ARGENTILLO",
@@ -151,7 +158,7 @@ function JuegoContent() {
     setNuevoMensaje("");
   };
 
-  // Trazo en Canvas
+  // Trazados en el Canvas
   const empezarDibujo = (e) => {
     if (!esMiTurno) return;
     setDibujando(true);
@@ -191,13 +198,15 @@ function JuegoContent() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-900 text-white p-2 md:p-4 flex flex-col items-center w-full">
-      <header className="w-full glass-panel p-4 mb-4 flex flex-wrap justify-between items-center gap-4">
+    <main className="min-h-screen bg-slate-950 text-white p-2 md:p-4 flex flex-col items-center w-full">
+      
+      {/* HEADER DE SALA Y CÓDIGO DESTACADO */}
+      <header className="w-full glass-panel p-4 mb-4 flex flex-wrap justify-between items-center gap-4 bg-slate-900 border border-slate-800 rounded-2xl">
         <div>
           <span className="text-xs text-amber-400 font-bold uppercase">Ronda {ronda}</span>
           <h1 className="text-lg font-black">
             {esMiTurno ? (
-              <span className="text-green-400">DIBUJÁ: {palabraSecreta}</span>
+              <span className="text-emerald-400">DIBUJÁ: {palabraSecreta}</span>
             ) : (
               <span className="text-slate-200">
                 {dibujanteUsuario ? `Dibuja ${dibujanteUsuario}: ` : "Esperando inicio... "}
@@ -209,23 +218,42 @@ function JuegoContent() {
           </h1>
         </div>
 
+        {/* CÓDIGO DE SALA VISIBLE */}
+        <div className="flex items-center gap-3 bg-slate-800 px-4 py-2 rounded-xl border border-sky-500/40">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-widest">CÓDIGO DE SALA: </span>
+            <span className="text-xl font-black text-amber-300 font-mono tracking-widest">{codigo || '----'}</span>
+          </div>
+          <button
+            onClick={handleCopiarCodigo}
+            className="px-2.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold rounded-lg transition-all active:scale-95 cursor-pointer ml-1"
+          >
+            {copiado ? '¡Copiado! 📋' : 'Copiar 🔗'}
+          </button>
+        </div>
+
         <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-slate-700">
           <span className="text-xs text-slate-400">TIEMPO:</span>
           <span className="text-2xl font-mono font-black text-amber-400">{tiempo}s</span>
         </div>
 
-        <button onClick={iniciarSiguienteTurno} className="btn-sol text-xs uppercase px-4 py-2 rounded-lg font-bold">
+        <button 
+          onClick={handleIniciarTurno} 
+          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs uppercase px-5 py-2.5 rounded-xl font-black tracking-wider transition-all shadow-lg cursor-pointer"
+        >
           Iniciar Mi Turno 🚀
         </button>
       </header>
 
+      {/* CUERPO DEL JUEGO: JUGADORES - CANVAS - CHAT */}
       <div className="w-full flex flex-col lg:flex-row gap-4 flex-1">
-        {/* Jugadores */}
-        <div className="glass-panel p-4 lg:w-1/5 h-fit">
+        
+        {/* Lista de Jugadores */}
+        <div className="glass-panel p-4 lg:w-1/5 h-fit bg-slate-900 border border-slate-800 rounded-2xl">
           <h2 className="text-sm font-bold text-amber-400 mb-3 border-b border-slate-700 pb-2">Jugadores</h2>
           <ul className="space-y-2">
             {jugadores.map((j, i) => (
-              <li key={i} className={`flex justify-between items-center p-2 rounded-lg text-sm bg-slate-900/80 ${j.usuario === dibujanteUsuario ? "border-l-4 border-amber-400" : ""}`}>
+              <li key={i} className={`flex justify-between items-center p-2 rounded-lg text-sm bg-slate-950/80 ${j.usuario === dibujanteUsuario ? "border-l-4 border-amber-400" : ""}`}>
                 <span>{j.usuario} {j.usuario === dibujanteUsuario ? "✏️" : ""}</span>
                 <span className="text-amber-400 font-bold">{j.puntos} pts</span>
               </li>
@@ -233,8 +261,8 @@ function JuegoContent() {
           </ul>
         </div>
 
-        {/* Canvas */}
-        <div className="glass-panel p-4 flex-1 flex flex-col items-center w-full">
+        {/* Canvas de Dibujo */}
+        <div className="glass-panel p-4 flex-1 flex flex-col items-center w-full bg-slate-900 border border-slate-800 rounded-2xl">
           <div className="canvas-wrapper w-full">
             <canvas
               ref={canvasRef}
@@ -247,29 +275,29 @@ function JuegoContent() {
           </div>
 
           {esMiTurno ? (
-            <div className="flex items-center justify-between w-full mt-3 gap-2 px-3 py-2 bg-slate-900/80 rounded-xl border border-slate-700/80">
+            <div className="flex items-center justify-between w-full mt-3 gap-2 px-3 py-2 bg-slate-950 rounded-xl border border-slate-800">
               <div className="flex items-center gap-1.5">
                 {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308", "#a855f7"].map((c) => (
-                  <button key={c} type="button" onClick={() => setColor(c)} style={{ backgroundColor: c }} className={`color-swatch ${color === c ? "active" : ""}`} />
+                  <button key={c} type="button" onClick={() => setColor(c)} style={{ backgroundColor: c }} className={`w-7 h-7 rounded-full border-2 transition-transform ${color === c ? "border-amber-400 scale-110" : "border-slate-700"}`} />
                 ))}
               </div>
-              <button type="button" onClick={() => socket.emit("limpiar_lienzo", codigo)} className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold">
-                🗑️ Limpiar
+              <button type="button" onClick={() => socket.emit("limpiar_lienzo", codigo)} className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold hover:bg-red-500/30">
+                🗑️ Limpiar Lienzo
               </button>
             </div>
           ) : (
-            <div className="mt-3 py-1.5 px-4 bg-slate-900/50 rounded-lg text-xs text-slate-400 text-center font-medium border border-slate-800 w-full">
-              👀 Mirá atentamente el dibujo e intentá adivinar la palabra
+            <div className="mt-3 py-2 px-4 bg-slate-950/50 rounded-lg text-xs text-slate-400 text-center font-medium border border-slate-800 w-full">
+              👀 Mirá atentamente el dibujo e intentá adivinar la palabra en el chat
             </div>
           )}
         </div>
 
-        {/* Chat */}
-        <div className="glass-panel p-4 lg:w-1/4 flex flex-col justify-between h-[480px]">
+        {/* Chat / Respuestas */}
+        <div className="glass-panel p-4 lg:w-1/4 flex flex-col justify-between h-[480px] bg-slate-900 border border-slate-800 rounded-2xl">
           <h2 className="text-sm font-bold text-amber-400 border-b border-slate-700 pb-2">Chat / Respuestas</h2>
           <div className="flex-1 overflow-y-auto space-y-2 my-2 text-xs">
             {mensajes.map((m, idx) => (
-              <div key={idx} className={`p-2 rounded-lg ${m.tipo === "exito" ? "bg-green-500/20 text-green-300 font-bold" : "bg-slate-900 text-slate-300"}`}>
+              <div key={idx} className={`p-2 rounded-lg ${m.tipo === "exito" ? "bg-green-500/20 text-green-300 font-bold" : "bg-slate-950 text-slate-300"}`}>
                 <span className="text-amber-400 font-bold">{m.usuario}: </span>
                 <span>{m.mensaje}</span>
               </div>
@@ -283,13 +311,14 @@ function JuegoContent() {
               onChange={(e) => setNuevoMensaje(e.target.value)}
               disabled={esMiTurno}
               placeholder={esMiTurno ? "Estás dibujando..." : "Arriesgá una palabra..."}
-              className="flex-1 px-3 py-2 input-argentillo text-xs focus:outline-none disabled:opacity-50"
+              className="flex-1 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs focus:outline-none disabled:opacity-50 text-white"
             />
-            <button type="submit" disabled={esMiTurno} className="btn-sol px-3 py-2 text-xs uppercase disabled:opacity-50 rounded-lg">
+            <button type="submit" disabled={esMiTurno} className="bg-sky-500 hover:bg-sky-400 text-white px-3 py-2 text-xs font-bold uppercase disabled:opacity-50 rounded-xl">
               Enviar
             </button>
           </form>
         </div>
+
       </div>
     </main>
   );
@@ -297,7 +326,7 @@ function JuegoContent() {
 
 export default function JuegoPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-amber-400 font-bold">Cargando partida...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-amber-400 font-bold bg-slate-950">Cargando partida...</div>}>
       <JuegoContent />
     </Suspense>
   );

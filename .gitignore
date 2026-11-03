@@ -1,2 +1,4 @@
 /backend/node_modules
 /node_modules
+backend/.pio.env
+backend/.home.env

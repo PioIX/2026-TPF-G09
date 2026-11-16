@@ -33,7 +33,7 @@ const db = mysql.createPool({
   queueLimit: 0,
 });
 
-const usuariosBD = [];
+
 const salas = {};
 
 // Categorías
@@ -99,18 +99,45 @@ app.post("/api/registro", (req, res) => {
   return res.status(201).json({ mensaje: "Usuario creado", usuario: { usuario, email } });
 });
 
+const usuariosBD = [
+  {
+    id_usuario: 1,
+    usuario: "admin",
+    email: "admin@argentillo.com",
+    password: "admin123",
+    es_admin: 1
+  }
+];
+
 app.post("/api/login", (req, res) => {
   const { usuario, password } = req.body;
   if (!usuario) return res.status(400).json({ mensaje: "Ingresá un usuario" });
 
-  let user = usuariosBD.find((u) => (u.usuario === usuario || u.email === usuario) && u.password === password);
-  
+  let user = usuariosBD.find(
+    (u) => (u.usuario === usuario || u.email === usuario) && u.password === password
+  );
+
   if (!user) {
-    user = { usuario, password: password || "123456" };
+    user = { usuario, password: password || "123456", es_admin: 0 };
     usuariosBD.push(user);
   }
 
   return res.json({ usuario: user });
+});
+
+app.post("/api/admin/verificar", (req, res) => {
+  const { usuario, claveAdmin } = req.body;
+  const user = usuariosBD.find((u) => u.usuario === usuario);
+
+  if (!user || user.es_admin !== 1) {
+    return res.status(403).json({ mensaje: "Tu cuenta no tiene permisos de administrador" });
+  }
+
+  if (claveAdmin !== CLAVE_ADMIN) {
+    return res.status(401).json({ mensaje: "Código de verificación incorrecto" });
+  }
+
+  return res.json({ autorizado: true });
 });
 
 // Sockets
@@ -222,3 +249,38 @@ app.post("/api/admin/palabras", async (req, res) => {
     return res.status(500).json({ mensaje: "Error al guardar la palabra" });
   }
 });
+
+const CLAVE_ADMIN = 'Moranditequiero';
+
+// Endpoint para verificar usuario + clave maestra
+app.post('/api/admin/verificar', async (req, res) => {
+  const { usuario, claveAdmin } = req.body;
+
+  try {
+    const [filas] = await pool.query(
+      'SELECT es_admin FROM Usuario WHERE usuario = ?',
+      [usuario]
+    );
+
+    if (filas.length === 0 || filas[0].es_admin !== 1) {
+      return res.status(403).json({ mensaje: 'Tu cuenta no tiene permisos de administrador' });
+    }
+
+    if (claveAdmin !== CLAVE_ADMIN) {
+      return res.status(401).json({ mensaje: 'Código de verificación incorrecto' });
+    }
+
+    res.json({ autorizado: true });
+  } catch (err) {
+    res.status(500).json({ mensaje: 'Error al verificar administrador' });
+  }
+});
+
+// Middleware que protege las rutas de admin
+const verificarAdmin = (req, res, next) => {
+  const clave = req.headers['x-admin-key'];
+  if (!clave || clave !== CLAVE_ADMIN) {
+    return res.status(403).json({ mensaje: 'Acceso denegado: verificación requerida' });
+  }
+  next();
+};

@@ -1,0 +1,171 @@
+/* Contenedor principal */
+.admin-container {
+  min-height: 100vh;
+  background-color: #020617;
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.08), transparent 35%),
+    radial-gradient(circle at 85% 85%, rgba(251, 191, 36, 0.06), transparent 35%);
+  color: #f8fafc;
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Tarjeta principal del panel */
+.admin-card {
+  width: 100%;
+  max-width: 1100px;
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+/* Cabecera */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 1.25rem;
+}
+
+.admin-header-info {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.admin-logo {
+  width: 120px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 12px rgba(56, 189, 248, 0.25));
+  transition: transform 0.25s ease;
+}
+
+.admin-logo:hover {
+  transform: scale(1.04);
+}
+
+.admin-title {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #fbbf24;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.admin-subtitle {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 0.25rem 0 0 0;
+}
+
+/* Botón volver a la sala */
+.btn-volver {
+  background-color: #38bdf8;
+  color: #020617;
+  font-weight: 800;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.65rem 1.25rem;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.25);
+}
+
+.btn-volver:hover {
+  background-color: #7dd3fc;
+  transform: translateY(-1px);
+}
+
+/* Banner de mensajes / alertas */
+.admin-alerta {
+  background-color: #1e293b;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* Grilla de 2 columnas */
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+/* Secciones / Módulos internos */
+.admin-section {
+  background-color: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 18px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin: 0 0 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.title-celeste { color: #38bdf8; }
+.title-esmeralda { color: #34d399; }
+.title-dorado { color: #fbbf24; }
+.title-violeta { color: #c084fc; }
+
+/* Formularios */
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.admin-input,
+.admin-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  color: #f8fafc;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-input::placeholder {
+  color: #64748b;
+}
+
+.admin-input:focus,
+.admin-select:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+}
+
+/* Botones principales de acción */
+.btn-primario {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border: none }

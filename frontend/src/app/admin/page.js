@@ -7,35 +7,89 @@ import '../sala/sala.css';
 
 export default function AdminPage() {
   const router = useRouter();
+  const [verificado, setVerificado] = useState(false);
+  const [claveInput, setClaveInput] = useState('');
+  const [claveActiva, setClaveActiva] = useState('');
+  const [verificando, setVerificando] = useState(false);
+
   const [nuevaPalabra, setNuevaPalabra] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('');
   const [categorias, setCategorias] = useState([]);
   const [mensaje, setMensaje] = useState('');
 
+  const getBackendUrl = () =>
+    typeof window !== 'undefined'
+      ? `http://${window.location.hostname}:4000`
+      : 'http://localhost:4000';
+
   useEffect(() => {
-    const esAdmin = JSON.parse(localStorage.getItem('esAdmin') || 'false');
-    if (!esAdmin) {
+    const esAdminRaw = localStorage.getItem('esAdmin');
+    const esAdmin = esAdminRaw ? JSON.parse(esAdminRaw) : false;
+
+    if (!esAdmin || esAdmin === 0 || esAdmin === '0') {
       router.push('/sala');
       return;
     }
 
-    fetch('http://localhost:4000/api/categorias')
+    const claveGuardada = sessionStorage.getItem('adminKey');
+    if (claveGuardada) {
+      setClaveActiva(claveGuardada);
+      setVerificado(true);
+    }
+
+    fetch(`${getBackendUrl()}/api/categorias`)
       .then((res) => res.json())
       .then((data) => {
-        setCategorias(data);
-        if (data.length > 0) setCategoriaSeleccionada(data[0].id_categoria);
+        if (Array.isArray(data)) {
+          setCategorias(data);
+          if (data.length > 0) setCategoriaSeleccionada(data[0].id_categoria);
+        }
       })
       .catch((err) => console.error('Error cargando categorías:', err));
   }, [router]);
+
+  const handleVerificar = async (e) => {
+    e.preventDefault();
+    setMensaje('');
+    setVerificando(true);
+
+    const usuarioActual = localStorage.getItem('usuario') || '';
+
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/admin/verificar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          usuario: usuarioActual,
+          claveAdmin: claveInput.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.mensaje || 'Clave incorrecta');
+
+      sessionStorage.setItem('adminKey', claveInput.trim());
+      setClaveActiva(claveInput.trim());
+      setVerificado(true);
+      setMensaje('');
+    } catch (err) {
+      setMensaje(`⚠️ ${err.message}`);
+    } finally {
+      setVerificando(false);
+    }
+  };
 
   const handleAgregarPalabra = async (e) => {
     e.preventDefault();
     setMensaje('');
 
     try {
-      const res = await fetch('http://localhost:4000/api/admin/palabras', {
+      const res = await fetch(`${getBackendUrl()}/api/admin/palabras`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': claveActiva
+        },
         body: JSON.stringify({
           palabra: nuevaPalabra,
           id_categoria: categoriaSeleccionada
@@ -51,6 +105,48 @@ export default function AdminPage() {
       setMensaje(`⚠️ ${err.message}`);
     }
   };
+
+  if (!verificado) {
+    return (
+      <main className="sala-container">
+        <div className="sala-card">
+          <div className="sala-header">
+            <div>
+              <h1 className="sala-title">Verificación Admin 🔒</h1>
+              <p className="sala-subtitle">Ingresá la clave de seguridad para continuar</p>
+            </div>
+            <Link href="/sala" className="sala-logout-btn" style={{ textDecoration: 'none' }}>
+              Volver a la Sala
+            </Link>
+          </div>
+
+          {mensaje && (
+            <p className="sala-subtitle" style={{ color: '#f87171', fontWeight: 'bold', marginBottom: '1rem' }}>
+              {mensaje}
+            </p>
+          )}
+
+          <form onSubmit={handleVerificar}>
+            <div className="sala-group">
+              <label className="sala-label">Código de Administrador</label>
+              <input
+                type="password"
+                required
+                placeholder="Ingresá la clave secreta..."
+                value={claveInput}
+                onChange={(e) => setClaveInput(e.target.value)}
+                className="sala-input"
+              />
+            </div>
+
+            <button type="submit" disabled={verificando} className="sala-btn-primary">
+              {verificando ? 'Verificando...' : 'Desbloquear Panel 🔓'}
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="sala-container">

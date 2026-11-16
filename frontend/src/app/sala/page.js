@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import io from 'socket.io-client';
 import './sala.css';
 
-let socket;
-
 export default function SalaPage() {
   const router = useRouter();
+  const socketRef = useRef(null);
+  const categoriaRef = useRef('TODAS');
+
   const [usuario, setUsuario] = useState('');
   const [esAdmin, setEsAdmin] = useState(false);
   const [nombreSala, setNombreSala] = useState('');
@@ -18,29 +19,39 @@ export default function SalaPage() {
   const [creando, setCreando] = useState(false);
   const [entrando, setEntrando] = useState(false);
 
+  const getBackendUrl = () =>
+    typeof window !== 'undefined'
+      ? `http://${window.location.hostname}:4000`
+      : 'http://localhost:4000';
+
   useEffect(() => {
-    // 1. Recuperar información del usuario
     const userLocal = localStorage.getItem('usuario') || 'JugadorAnonimo';
     setUsuario(userLocal);
 
-    // 2. Recuperar permisos de administrador (RBAC)
     const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
     setEsAdmin(Boolean(adminLocal));
 
-    // 3. Inicializar Socket y cargar categorías desde la BD
-    socket = io('http://localhost:4000');
+    const backendUrl = getBackendUrl();
+    const socket = io(backendUrl);
+    socketRef.current = socket;
 
-    fetch('http://localhost:4000/api/categorias')
+    fetch(`${backendUrl}/api/categorias`)
       .then((res) => res.json())
-      .then((data) => setCategoriasLista(data))
+      .then((data) => {
+        if (Array.isArray(data)) setCategoriasLista(data);
+      })
       .catch((err) => console.error('Error cargando categorías:', err));
 
     socket.on('sala_creada', ({ codigoSala }) => {
-      router.push(`/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}`);
+      router.push(
+        `/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}&categoria=${categoriaRef.current}`
+      );
     });
 
-    socket.on('unido_exitoso', ({ codigoSala }) => {
-      router.push(`/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}`);
+    socket.on('unido_exitoso', ({ codigoSala, categoria: catSala }) => {
+      router.push(
+        `/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}&categoria=${catSala || 'TODAS'}`
+      );
     });
 
     return () => {
@@ -51,11 +62,16 @@ export default function SalaPage() {
   const handleCrearSala = (e) => {
     e.preventDefault();
     setCreando(true);
-    
+    categoriaRef.current = categoria;
+
+    if (!socketRef.current) {
+      socketRef.current = io(getBackendUrl());
+    }
+
     const catObj = categoriasLista.find((c) => String(c.id_categoria) === String(categoria));
     const categoriaNombre = catObj ? catObj.nombre : 'TODAS';
 
-    socket.emit('crear_sala', {
+    socketRef.current.emit('crear_sala', {
       nombreSala,
       usuario,
       categoria,
@@ -67,7 +83,15 @@ export default function SalaPage() {
     e.preventDefault();
     if (!codigoIngreso) return;
     setEntrando(true);
-    socket.emit('unirse_sala', { codigoSala: codigoIngreso, usuario });
+
+    if (!socketRef.current) {
+      socketRef.current = io(getBackendUrl());
+    }
+
+    socketRef.current.emit('unirse_sala', {
+      codigoSala: codigoIngreso.toUpperCase(),
+      usuario
+    });
   };
 
   const handleCerrarSesion = () => {
@@ -79,8 +103,6 @@ export default function SalaPage() {
   return (
     <main className="sala-container">
       <div className="sala-card">
-        
-        {/* Header */}
         <div className="sala-header">
           <div>
             <h1 className="sala-title">ARGENTILLO 🎨</h1>
@@ -91,10 +113,9 @@ export default function SalaPage() {
           </button>
         </div>
 
-        {/* BOTÓN PANEL DE ADMINISTRADOR (RBAC) */}
         {esAdmin && (
-          <button 
-            onClick={() => router.push('/admin')} 
+          <button
+            onClick={() => router.push('/admin')}
             className="sala-btn-secondary"
             style={{ marginBottom: '1.25rem', backgroundColor: '#a855f7', color: '#ffffff' }}
           >
@@ -102,10 +123,9 @@ export default function SalaPage() {
           </button>
         )}
 
-        {/* Sección Crear Sala */}
         <form onSubmit={handleCrearSala}>
           <h2 className="sala-section-title">Crear nueva sala</h2>
-          
+
           <div className="sala-group">
             <label className="sala-label">Nombre de la Sala</label>
             <input
@@ -140,7 +160,6 @@ export default function SalaPage() {
 
         <hr className="sala-divider" />
 
-        {/* Sección Unirse a Sala */}
         <form onSubmit={handleUnirseSala}>
           <h2 className="sala-section-title">O unirte a una existente</h2>
 
@@ -161,7 +180,6 @@ export default function SalaPage() {
             {entrando ? 'Entrando...' : 'Unirse a la Sala 🎮'}
           </button>
         </form>
-
       </div>
     </main>
   );

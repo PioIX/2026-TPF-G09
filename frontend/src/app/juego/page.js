@@ -1,311 +1,628 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { io } from "socket.io-client";
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import io from 'socket.io-client';
 
-let socket;
+const COLORES = [
+  '#000000', // Negro
+  '#ef4444', // Rojo
+  '#3b82f6', // Azul
+  '#22c55e', // Verde
+  '#eab308', // Amarillo
+  '#a855f7', // Violeta
+  '#f97316', // Naranja
+  '#92400e', // Marrón
+  '#ffffff'  // Goma de borrar
+];
 
-function JuegoContent() {
-  const router = useRouter();
+function JuegoContenido() {
   const searchParams = useSearchParams();
-  const codigo = searchParams.get("codigo");
-  const usuario = searchParams.get("usuario");
-  const idCategoria = searchParams.get("categoria") || "TODAS";
+  const router = useRouter();
 
-  // Estados de Partida
-  const [jugadores, setJugadores] = useState([]);
-  const [mensajes, setMensajes] = useState([]);
-  const [nuevoMensaje, setNuevoMensaje] = useState("");
-  const [tiempo, setTiempo] = useState(60);
-  const [ronda, setRonda] = useState(1);
-  const [dibujanteUsuario, setDibujanteUsuario] = useState("");
-  const [palabraSecreta, setPalabraSecreta] = useState("");
-  const [esMiTurno, setEsMiTurno] = useState(false);
-  const [copiado, setCopiado] = useState(false);
-  // Canvas
+  const codigoSala = (searchParams.get('codigo') || '').toUpperCase();
+  const usuario = searchParams.get('usuario') || 'Jugador';
+  const categoriaUrl = searchParams.get('categoria') || 'TODAS';
+
+  // Refs persistentes (sobreviven al Fast Refresh de Next.js)
+  const socketRef = useRef(null);
   const canvasRef = useRef(null);
-  const [dibujando, setDibujando] = useState(false);
-  const [color, setColor] = useState("#000000");
+  const isDrawingRef = useRef(false);
+  const lastPosRef = useRef({ x: 0, y: 0 });
+  const categoriaRef = useRef(categoriaUrl);
+  const palabraActualRef = useRef('');
+  const yaAdivinoRef = useRef(false);
 
+  // Estados de la partida
+  const [jugadores, setJugadores] = useState([]);
+  const [categoriaSala, setCategoriaSala] = useState(categoriaUrl);
+  const [dibujante, setDibujante] = useState('');
+  const [palabraSecreta, setPalabraSecreta] = useState('');
+  const [turnoActivo, setTurnoActivo] = useState(false);
+  const [tiempoRestante, setTiempoRestante] = useState(60);
+
+  // Estados de dibujo y chat
+  const [colorActual, setColorActual] = useState('#000000');
+  const [mensajes, setMensajes] = useState([]);
+  const [textoChat, setTextoChat] = useState('');
+
+  const esDibujante = dibujante === usuario;
+  const esGoma = colorActual.toLowerCase() === '#ffffff';
+
+  const getBackendUrl = () =>
+    typeof window !== 'undefined'
+      ? `http://${window.location.hostname}:4000`
+      : 'http://localhost:4000';
+
+  // Función auxiliar para dibujar un segmento en el canvas
+  const trazarLinea = (ctx, x0, y0, x1, y1, color, grosor) => {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = grosor;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.closePath();
+  };
+
+  const limpiarCanvasLocal = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  // Inicializar canvas blanco y conexión Socket.io
   useEffect(() => {
-    if (!codigo || !usuario) {
-      router.push("/sala");
+    limpiarCanvasLocal();
+
+    if (!codigoSala) {
+      router.push('/sala');
       return;
     }
 
-    if (!socket) socket = io("http://localhost:4000");
+    const socket = io(getBackendUrl());
+    socketRef.current = socket;
 
-    socket.emit("unirse_sala", { codigoSala: codigo, usuario });
+    socket.emit('unirse_sala', { codigoSala, usuario });
 
-    socket.on("jugador_unido", (nuevoJugador) => {
-      setJugadores((prev) => {
-        if (prev.some((j) => j.usuario === nuevoJugador.usuario)) return prev;
-        return [...prev, { ...nuevoJugador, puntos: 0 }];
-      });
-    });
-
-    socket.on("mensaje_recibido", (msg) => setMensajes((prev) => [...prev, msg]));
-    socket.on("dibujar", (datosTrazo) => dibujarEnCanvas(datosTrazo));
-
-    socket.on("limpiar_lienzo", () => {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    socket.on('unido_exitoso', (data) => {
+      if (data?.categoria && data.categoria !== 'TODAS') {
+        categoriaRef.current = String(data.categoria);
+        setCategoriaSala(String(data.categoria));
+      }
+      if (data?.sala?.jugadores) {
+        setJugadores(data.sala.jugadores);
       }
     });
 
-    // Evento donde se recibe el nuevo turno y la palabra desde la BD
-    socket.on("turno_iniciado", (datos) => {
-      setTiempo(60);
-      setRonda(datos.ronda);
-      setDibujanteUsuario(datos.dibujanteUsuario);
-      
-      // Guardamos la palabra en estado para poder validar el chat
-      setPalabraSecreta(datos.palabra || "");
+    socket.on('actualizar_jugadores', (lista) => {
+      setJugadores(lista);
+    });
 
-      // Evaluamos si el usuario actual es quien dibuja
-      const esDibujante = datos.dibujanteUsuario.trim().toLowerCase() === usuario.trim().toLowerCase();
-      setEsMiTurno(esDibujante);
+    socket.on('jugador_unido', ({ usuario: nuevoUsuario }) => {
+      setMensajes((prev) => [
+        ...prev,
+        { usuario: 'Sistema', mensaje: `${nuevoUsuario} se unió a la sala`, tipo: 'sistema' }
+      ]);
+    });
+
+    socket.on('dibujar', (datos) => {
+      const ctx = canvasRef.current?.getContext('2d');
+      if (!ctx) return;
+      const grosorRemoto = datos.grosor || (datos.color === '#ffffff' ? 28 : 4);
+      trazarLinea(ctx, datos.x0, datos.y0, datos.x1, datos.y1, datos.color, grosorRemoto);
+    });
+
+    socket.on('limpiar_lienzo', () => {
+      limpiarCanvasLocal();
+    });
+
+    socket.on('turno_iniciado', (datosTurno) => {
+      setDibujante(datosTurno.dibujante);
+      setPalabraSecreta(datosTurno.palabra);
+      palabraActualRef.current = datosTurno.palabra;
+      yaAdivinoRef.current = false;
+      setTiempoRestante(60);
+      setTurnoActivo(true);
+      limpiarCanvasLocal();
+
+      setMensajes((prev) => [
+        ...prev,
+        {
+          usuario: 'Sistema',
+          mensaje: `🎨 ¡Comenzó el turno! Dibuja: ${datosTurno.dibujante}`,
+          tipo: 'sistema'
+        }
+      ]);
+    });
+
+    socket.on('mensaje_recibido', (msg) => {
+      setMensajes((prev) => [...prev, msg]);
     });
 
     return () => {
-      socket.off("jugador_unido");
-      socket.off("mensaje_recibido");
-      socket.off("dibujar");
-      socket.off("limpiar_lienzo");
-      socket.off("turno_iniciado");
+      socket.disconnect();
     };
-  }, [codigo, usuario, router]);
+  }, [codigoSala, usuario, router]);
 
-  // Dimensiones dinámicas del Canvas
+  // Temporizador del turno
   useEffect(() => {
-    const recalcular = () => {
-      const canvas = canvasRef.current;
-      if (canvas && canvas.parentElement) {
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = 480;
-      }
-    };
-    recalcular();
-    window.addEventListener("resize", recalcular);
-    return () => window.removeEventListener("resize", recalcular);
-  }, []);
+    if (!turnoActivo) return;
 
-  // Timer local controlado por el dibujante
-  useEffect(() => {
-    if (!esMiTurno || tiempo <= 0) return;
-    const interval = setInterval(() => setTiempo((t) => t - 1), 1000);
-    return () => clearInterval(interval);
-  }, [esMiTurno, tiempo]);
+    const intervalo = setInterval(() => {
+      setTiempoRestante((prev) => {
+        if (prev <= 1) {
+          clearInterval(intervalo);
+          setTurnoActivo(false);
+          setMensajes((m) => [
+            ...m,
+            {
+              usuario: 'Sistema',
+              mensaje: `⏰ ¡Tiempo terminado! La palabra era: ${palabraActualRef.current}`,
+              tipo: 'sistema'
+            }
+          ]);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-  // Pedir palabra a MySQL (API Backend) e iniciar turno
-  const iniciarSiguienteTurno = async () => {
+    return () => clearInterval(intervalo);
+  }, [turnoActivo]);
+
+  // Iniciar turno y pedir palabra filtrada por categoría
+  const handleIniciarTurno = async () => {
     try {
-      const res = await fetch(`http://localhost:4000/api/palabra?id_categoria=${idCategoria}`);
+      const backendUrl = getBackendUrl();
+      const res = await fetch(
+        `${backendUrl}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
+      );
       const data = await res.json();
-      const palabraBD = data.palabra;
+      const palabraElegida = (data?.palabra || 'MATE').toUpperCase();
 
-      const datosTurno = {
-        dibujanteUsuario: usuario,
-        ronda,
-        palabra: palabraBD,
-      };
-
-      socket.emit("nuevo_turno", { codigoSala: codigo, datosTurno });
-      socket.emit("limpiar_lienzo", codigo);
-    } catch (err) {
-      console.error("Error pidiendo palabra a la BD:", err);
+      socketRef.current?.emit('limpiar_lienzo', codigoSala);
+      socketRef.current?.emit('nuevo_turno', {
+        codigoSala,
+        datosTurno: {
+          dibujante: usuario,
+          palabra: palabraElegida,
+          categoria: categoriaRef.current
+        }
+      });
+    } catch (error) {
+      console.error('Error al obtener palabra:', error);
     }
   };
-  const handleCopiarCodigo = () => {
-      if (!codigo) return;
-      navigator.clipboard.writeText(codigo);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
+
+  // Coordenadas exactas escaladas al tamaño real del canvas (800x500)
+  const obtenerCoordenadas = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    return {
+      x: ((clientX - rect.left) / rect.width) * canvas.width,
+      y: ((clientY - rect.top) / rect.height) * canvas.height
+    };
   };
-  // Enviar y validar mensajes en el Frontend
+
+  const empezarDibujo = (e) => {
+    if (!esDibujante && turnoActivo) return;
+    isDrawingRef.current = true;
+    lastPosRef.current = obtenerCoordenadas(e);
+  };
+
+  const moverDibujo = (e) => {
+    if (!isDrawingRef.current) return;
+    if (!esDibujante && turnoActivo) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
+
+    const posActual = obtenerCoordenadas(e);
+    const grosor = esGoma ? 28 : 4;
+
+    trazarLinea(
+      ctx,
+      lastPosRef.current.x,
+      lastPosRef.current.y,
+      posActual.x,
+      posActual.y,
+      colorActual,
+      grosor
+    );
+
+    socketRef.current?.emit('dibujar', {
+      codigoSala,
+      datosTrazo: {
+        x0: lastPosRef.current.x,
+        y0: lastPosRef.current.y,
+        x1: posActual.x,
+        y1: posActual.y,
+        color: colorActual,
+        grosor
+      }
+    });
+
+    lastPosRef.current = posActual;
+  };
+
+  const terminarDibujo = () => {
+    isDrawingRef.current = false;
+  };
+
+  const handleLimpiarTodo = () => {
+    limpiarCanvasLocal();
+    socketRef.current?.emit('limpiar_lienzo', codigoSala);
+  };
+
+  // Enviar mensaje o verificar si adivinó la palabra
   const handleEnviarMensaje = (e) => {
     e.preventDefault();
-    if (!nuevoMensaje.trim()) return;
+    const texto = textoChat.trim();
+    if (!texto) return;
 
-    const intento = nuevoMensaje.trim().toUpperCase();
+    const palabraObjetivo = palabraActualRef.current.trim().toUpperCase();
 
-    // Comprobación local de la palabra
-    if (!esMiTurno && palabraSecreta && intento === palabraSecreta) {
-      socket.emit("enviar_mensaje", {
-        codigoSala: codigo,
-        usuario: "ARGENTILLO",
-        mensaje: `🎉 ¡${usuario} ADIVINÓ LA PALABRA! (${palabraSecreta})`,
-        tipo: "exito",
-      });
-
-      setJugadores((prev) =>
-        prev.map((j) => (j.usuario === usuario ? { ...j, puntos: j.puntos + 100 } : j))
-      );
-    } else {
-      socket.emit("enviar_mensaje", {
-        codigoSala: codigo,
+    if (
+      turnoActivo &&
+      !esDibujante &&
+      !yaAdivinoRef.current &&
+      palabraObjetivo &&
+      texto.toUpperCase() === palabraObjetivo
+    ) {
+      yaAdivinoRef.current = true;
+      socketRef.current?.emit('enviar_mensaje', {
+        codigoSala,
         usuario,
-        mensaje: nuevoMensaje.trim(),
-        tipo: "normal",
+        mensaje: '🎉 ¡ADIVINÓ LA PALABRA!',
+        tipo: 'acierto'
+      });
+    } else {
+      socketRef.current?.emit('enviar_mensaje', {
+        codigoSala,
+        usuario,
+        mensaje: texto,
+        tipo: 'normal'
       });
     }
 
-    setNuevoMensaje("");
+    setTextoChat('');
   };
 
-  // Trazo en Canvas
-  const empezarDibujo = (e) => {
-    if (!esMiTurno) return;
-    setDibujando(true);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const datosTrazo = { x: e.clientX - rect.left, y: e.clientY - rect.top, color, inicio: true };
-    dibujarEnCanvas(datosTrazo);
-    socket.emit("dibujar", { codigoSala: codigo, datosTrazo });
-  };
-
-  const hacerTrazo = (e) => {
-    if (!dibujando || !esMiTurno) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const datosTrazo = { x: e.clientX - rect.left, y: e.clientY - rect.top, color, inicio: false };
-    dibujarEnCanvas(datosTrazo);
-    socket.emit("dibujar", { codigoSala: codigo, datosTrazo });
-  };
-
-  const dibujarEnCanvas = ({ x, y, color, inicio }) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = color;
-
-    if (inicio) {
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-      ctx.stroke();
-    }
-  };
+  const palabraEnmascarada = palabraSecreta
+    ? palabraSecreta
+        .split('')
+        .map((letra) => (letra === ' ' ? '   ' : '_'))
+        .join(' ')
+    : 'ESPERANDO TURNO...';
 
   return (
-    <main className="min-h-screen bg-slate-900 text-white p-2 md:p-4 flex flex-col items-center w-full">
-      <header className="w-full glass-panel p-4 mb-4 flex flex-wrap justify-between items-center gap-4">
+    <main
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#0f172a',
+        color: '#f8fafc',
+        padding: '1rem',
+        fontFamily: 'system-ui, sans-serif'
+      }}
+    >
+      {/* Barra superior */}
+      <header
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#1e293b',
+          padding: '0.75rem 1.25rem',
+          borderRadius: '12px',
+          marginBottom: '1rem',
+          gap: '1rem'
+        }}
+      >
         <div>
-          <span className="text-xs text-amber-400 font-bold uppercase">Ronda {ronda}</span>
-          <h1 className="text-lg font-black">
-            {esMiTurno ? (
-              <span className="text-green-400">DIBUJÁ: {palabraSecreta}</span>
-            ) : (
-              <span className="text-slate-200">
-                {dibujanteUsuario ? `Dibuja ${dibujanteUsuario}: ` : "Esperando inicio... "}
-                <span className="text-amber-400 font-mono tracking-widest">
-                  {palabraSecreta ? "_ ".repeat(palabraSecreta.length) : ""}
-                </span>
-              </span>
-            )}
-          </h1>
+          <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#38bdf8' }}>
+            ARGENTILLO 🎨
+          </span>
+          <span style={{ marginLeft: '1rem', color: '#94a3b8' }}>
+            Sala: <strong style={{ color: '#fff' }}>{codigoSala}</strong>
+          </span>
+          <span style={{ marginLeft: '1rem', color: '#94a3b8' }}>
+            Cat ID: <strong style={{ color: '#c084fc' }}>{categoriaSala}</strong>
+          </span>
         </div>
-            <div className="flex items-center gap-3 bg-slate-800 px-4 py-2 rounded-xl border border-sky-500/40">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-widest">CÓDIGO DE SALA: </span>
-            <span className="text-xl font-black text-amber-300 font-mono tracking-widest">{codigo || '----'}</span>
-          </div>
-          <button
-            onClick={handleCopiarCodigo}
-            className="px-2.5 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold rounded-lg transition-all active:scale-95 cursor-pointer ml-1"
+
+        {/* Palabra a dibujar o guiones para adivinar */}
+        <div
+          style={{
+            fontSize: '1.3rem',
+            fontWeight: 'bold',
+            letterSpacing: '2px',
+            backgroundColor: '#0f172a',
+            padding: '0.4rem 1.2rem',
+            borderRadius: '8px',
+            border: '1px solid #334155'
+          }}
+        >
+          {turnoActivo
+            ? esDibujante
+              ? `DIBUJÁ: ${palabraSecreta}`
+              : palabraEnmascarada
+            : 'LISTO PARA JUGAR'}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span
+            style={{
+              backgroundColor: tiempoRestante <= 10 && turnoActivo ? '#ef4444' : '#334155',
+              padding: '0.4rem 0.8rem',
+              borderRadius: '8px',
+              fontWeight: 'bold'
+            }}
           >
-            {copiado ? '¡Copiado! 📋' : 'Copiar 🔗'}
+            ⏱️ {tiempoRestante}s
+          </span>
+
+          <button
+            onClick={handleIniciarTurno}
+            style={{
+              backgroundColor: '#22c55e',
+              color: '#0f172a',
+              fontWeight: 'bold',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            🎲 Dibujar yo
+          </button>
+
+          <button
+            onClick={() => router.push('/sala')}
+            style={{
+              backgroundColor: '#ef4444',
+              color: '#fff',
+              border: 'none',
+              padding: '0.5rem 0.9rem',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Salir
           </button>
         </div>
-        <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-slate-700">
-          <span className="text-xs text-slate-400">TIEMPO:</span>
-          <span className="text-2xl font-mono font-black text-amber-400">{tiempo}s</span>
-        </div>
-
-        <button onClick={iniciarSiguienteTurno} className="btn-sol text-xs uppercase px-4 py-2 rounded-lg font-bold">
-          Iniciar Mi Turno 🚀
-        </button>
       </header>
 
-      <div className="w-full flex flex-col lg:flex-row gap-4 flex-1">
-        {/* Jugadores */}
-        <div className="glass-panel p-4 lg:w-1/5 h-fit">
-          <h2 className="text-sm font-bold text-amber-400 mb-3 border-b border-slate-700 pb-2">Jugadores</h2>
-          <ul className="space-y-2">
-            {jugadores.map((j, i) => (
-              <li key={i} className={`flex justify-between items-center p-2 rounded-lg text-sm bg-slate-900/80 ${j.usuario === dibujanteUsuario ? "border-l-4 border-amber-400" : ""}`}>
-                <span>{j.usuario} {j.usuario === dibujanteUsuario ? "✏️" : ""}</span>
-                <span className="text-amber-400 font-bold">{j.puntos} pts</span>
+      {/* Zona principal: Jugadores | Lienzo | Chat */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '220px 1fr 300px',
+          gap: '1rem',
+          alignItems: 'start'
+        }}
+      >
+        {/* Panel Jugadores */}
+        <aside
+          style={{
+            backgroundColor: '#1e293b',
+            padding: '1rem',
+            borderRadius: '12px'
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: '0.75rem', color: '#38bdf8' }}>
+            Jugadores ({jugadores.length})
+          </h3>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {jugadores.map((j, idx) => (
+              <li
+                key={j.id || idx}
+                style={{
+                  padding: '0.5rem',
+                  marginBottom: '0.4rem',
+                  borderRadius: '8px',
+                  backgroundColor: j.usuario === dibujante ? '#3b82f6' : '#0f172a',
+                  display: 'flex',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <span>
+                  {j.usuario === dibujante ? '✏️ ' : ''}
+                  {j.usuario}
+                </span>
               </li>
             ))}
           </ul>
-        </div>
+        </aside>
 
-        {/* Canvas */}
-        <div className="glass-panel p-4 flex-1 flex flex-col items-center w-full">
-          <div className="canvas-wrapper w-full">
-            <canvas
-              ref={canvasRef}
-              onMouseDown={empezarDibujo}
-              onMouseUp={() => setDibujando(false)}
-              onMouseLeave={() => setDibujando(false)}
-              onMouseMove={hacerTrazo}
-              className={`w-full bg-white rounded-lg touch-none ${esMiTurno ? "cursor-crosshair" : "cursor-not-allowed opacity-90"}`}
-            />
+        {/* Panel Central: Canvas + Paleta */}
+        <section
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.75rem'
+          }}
+        >
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={500}
+            onMouseDown={empezarDibujo}
+            onMouseMove={moverDibujo}
+            onMouseUp={terminarDibujo}
+            onMouseLeave={terminarDibujo}
+            onTouchStart={empezarDibujo}
+            onTouchMove={moverDibujo}
+            onTouchEnd={terminarDibujo}
+            style={{
+              width: '100%',
+              maxWidth: '800px',
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              border: '3px solid #334155',
+              cursor: !esDibujante && turnoActivo ? 'not-allowed' : esGoma ? 'cell' : 'crosshair',
+              touchAction: 'none'
+            }}
+          />
+
+          {/* Barra de colores y goma de borrar */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '0.5rem',
+              backgroundColor: '#1e293b',
+              padding: '0.6rem 1rem',
+              borderRadius: '12px'
+            }}
+          >
+            {COLORES.map((c) => {
+              const esBotonGoma = c.toLowerCase() === '#ffffff';
+              const seleccionado = colorActual.toLowerCase() === c.toLowerCase();
+
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  title={esBotonGoma ? 'Goma de borrar' : c}
+                  onClick={() => setColorActual(c)}
+                  style={{
+                    backgroundColor: c,
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '18px',
+                    border: seleccionado ? '3px solid #a855f7' : '2px solid #94a3b8',
+                    transform: seleccionado ? 'scale(1.12)' : 'scale(1)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {esBotonGoma ? '🧽' : ''}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={handleLimpiarTodo}
+              disabled={!esDibujante && turnoActivo}
+              style={{
+                marginLeft: '0.75rem',
+                backgroundColor: '#ef4444',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.5rem 0.9rem',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              🗑️ Limpiar todo
+            </button>
           </div>
+        </section>
 
-          {esMiTurno ? (
-            <div className="flex items-center justify-between w-full mt-3 gap-2 px-3 py-2 bg-slate-900/80 rounded-xl border border-slate-700/80">
-              <div className="flex items-center gap-1.5">
-                {["#000000", "#ffffff", "#ef4444", "#3b82f6", "#22c55e", "#eab308", "#a855f7"].map((c) => (
-                  <button key={c} type="button" onClick={() => setColor(c)} style={{ backgroundColor: c }} className={`color-swatch ${color === c ? "active" : ""}`} />
-                ))}
-              </div>
-              <button type="button" onClick={() => socket.emit("limpiar_lienzo", codigo)} className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold">
-                🗑️ Limpiar
-              </button>
-            </div>
-          ) : (
-            <div className="mt-3 py-1.5 px-4 bg-slate-900/50 rounded-lg text-xs text-slate-400 text-center font-medium border border-slate-800 w-full">
-              👀 Mirá atentamente el dibujo e intentá adivinar la palabra
-            </div>
-          )}
-        </div>
+        {/* Panel Chat / Adivinar */}
+        <aside
+          style={{
+            backgroundColor: '#1e293b',
+            padding: '1rem',
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '560px'
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: '0.75rem', color: '#38bdf8' }}>
+            Chat y Respuestas
+          </h3>
 
-        {/* Chat */}
-        <div className="glass-panel p-4 lg:w-1/4 flex flex-col justify-between h-[480px]">
-          <h2 className="text-sm font-bold text-amber-400 border-b border-slate-700 pb-2">Chat / Respuestas</h2>
-          <div className="flex-1 overflow-y-auto space-y-2 my-2 text-xs">
-            {mensajes.map((m, idx) => (
-              <div key={idx} className={`p-2 rounded-lg ${m.tipo === "exito" ? "bg-green-500/20 text-green-300 font-bold" : "bg-slate-900 text-slate-300"}`}>
-                <span className="text-amber-400 font-bold">{m.usuario}: </span>
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              backgroundColor: '#0f172a',
+              borderRadius: '8px',
+              padding: '0.6rem',
+              marginBottom: '0.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.4rem'
+            }}
+          >
+            {mensajes.map((m, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: '0.35rem 0.5rem',
+                  borderRadius: '6px',
+                  backgroundColor:
+                    m.tipo === 'acierto'
+                      ? '#166534'
+                      : m.tipo === 'sistema'
+                      ? '#1e293b'
+                      : 'transparent',
+                  color: m.tipo === 'acierto' ? '#86efac' : '#f1f5f9',
+                  fontSize: '0.9rem'
+                }}
+              >
+                {m.tipo !== 'sistema' && <strong>{m.usuario}: </strong>}
                 <span>{m.mensaje}</span>
               </div>
             ))}
           </div>
 
-          <form onSubmit={handleEnviarMensaje} className="flex gap-2">
+          <form onSubmit={handleEnviarMensaje} style={{ display: 'flex', gap: '0.4rem' }}>
             <input
               type="text"
-              value={nuevoMensaje}
-              onChange={(e) => setNuevoMensaje(e.target.value)}
-              disabled={esMiTurno}
-              placeholder={esMiTurno ? "Estás dibujando..." : "Arriesgá una palabra..."}
-              className="flex-1 px-3 py-2 input-argentillo text-xs focus:outline-none disabled:opacity-50"
+              placeholder={
+                esDibujante && turnoActivo
+                  ? 'Estás dibujando...'
+                  : 'Escribí tu respuesta...'
+              }
+              disabled={esDibujante && turnoActivo}
+              value={textoChat}
+              onChange={(e) => setTextoChat(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '0.55rem',
+                borderRadius: '8px',
+                border: '1px solid #334155',
+                backgroundColor: '#0f172a',
+                color: '#fff'
+              }}
             />
-            <button type="submit" disabled={esMiTurno} className="btn-sol px-3 py-2 text-xs uppercase disabled:opacity-50 rounded-lg">
+            <button
+              type="submit"
+              disabled={esDibujante && turnoActivo}
+              style={{
+                backgroundColor: '#38bdf8',
+                color: '#0f172a',
+                fontWeight: 'bold',
+                border: 'none',
+                padding: '0.55rem 0.9rem',
+                borderRadius: '8px',
+                cursor: 'pointer'
+              }}
+            >
               Enviar
             </button>
           </form>
-        </div>
+        </aside>
       </div>
     </main>
   );
@@ -313,8 +630,8 @@ function JuegoContent() {
 
 export default function JuegoPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-amber-400 font-bold">Cargando partida...</div>}>
-      <JuegoContent />
+    <Suspense fallback={<div style={{ color: '#fff', padding: '2rem' }}>Cargando partida...</div>}>
+      <JuegoContenido />
     </Suspense>
   );
 }

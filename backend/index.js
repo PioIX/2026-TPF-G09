@@ -33,7 +33,7 @@ const db = mysql.createPool({
   queueLimit: 0,
 });
 
-const usuariosBD = [];
+
 const salas = {};
 
 // Categorías
@@ -49,27 +49,25 @@ app.get("/api/categorias", async (req, res) => {
 
 // Obtener palabra aleatoria según la categoría elegida
 app.get("/api/palabra", async (req, res) => {
-  const { id_categoria } = req.query;
+  const catParam = req.query.id_categoria || req.query.categoria;
+  console.log("🎯 Buscando palabra para categoría:", catParam);
 
   try {
     let query = "SELECT p.palabra FROM Palabra p";
     let params = [];
 
-    // Si viene una categoría válida (distinta de TODAS / indefinida)
     if (
-      id_categoria &&
-      id_categoria !== "TODAS" &&
-      id_categoria !== "null" &&
-      id_categoria !== "undefined"
+      catParam &&
+      catParam !== "TODAS" &&
+      catParam !== "null" &&
+      catParam !== "undefined"
     ) {
-      if (!isNaN(id_categoria)) {
-        // Filtrar por ID de la categoría (ej: 1, 2, 3)
+      if (!isNaN(catParam)) {
         query += " WHERE p.id_categoria = ?";
-        params.push(Number(id_categoria));
+        params.push(Number(catParam));
       } else {
-        // Filtrar por Nombre de la categoría (ej: "futbol", "deportes")
-        query += " INNER JOIN categoria c ON p.id_categoria = c.id_categoria WHERE LOWER(c.nombre) LIKE LOWER(?)";
-        params.push(`%${id_categoria}%`);
+        query += " INNER JOIN Categoria c ON p.id_categoria = c.id_categoria WHERE LOWER(c.nombre) LIKE LOWER(?)";
+        params.push(`%${catParam}%`);
       }
     }
 
@@ -79,10 +77,13 @@ app.get("/api/palabra", async (req, res) => {
 
     if (rows && rows.length > 0) {
       return res.json({ palabra: rows[0].palabra.trim().toUpperCase() });
+    } else {
+      console.log("⚠️ La consulta devolvió 0 palabras para la categoría:", catParam);
     }
   } catch (error) {
-    console.error("🔴 Error al filtrar palabra:", error.message);
+    console.error("🔴 Error SQL al filtrar palabra:", error.message);
   }
+  // (Acá dejá tu respaldo por si falla la BD)
 
   // Fallback si la categoría elegida no tiene palabras cargadas en la BD
   const palabrasRespaldo = ["MATE", "EMPANADA", "OBELISCO", "ASADO", "CARPINCHO", "MESSI"];
@@ -99,18 +100,45 @@ app.post("/api/registro", (req, res) => {
   return res.status(201).json({ mensaje: "Usuario creado", usuario: { usuario, email } });
 });
 
+const usuariosBD = [
+  {
+    id_usuario: 1,
+    usuario: "admin",
+    email: "admin@argentillo.com",
+    password: "admin123",
+    es_admin: 1
+  }
+];
+
 app.post("/api/login", (req, res) => {
   const { usuario, password } = req.body;
   if (!usuario) return res.status(400).json({ mensaje: "Ingresá un usuario" });
 
-  let user = usuariosBD.find((u) => (u.usuario === usuario || u.email === usuario) && u.password === password);
-  
+  let user = usuariosBD.find(
+    (u) => (u.usuario === usuario || u.email === usuario) && u.password === password
+  );
+
   if (!user) {
-    user = { usuario, password: password || "123456" };
+    user = { usuario, password: password || "123456", es_admin: 0 };
     usuariosBD.push(user);
   }
 
   return res.json({ usuario: user });
+});
+
+app.post("/api/admin/verificar", (req, res) => {
+  const { usuario, claveAdmin } = req.body;
+  const user = usuariosBD.find((u) => u.usuario === usuario);
+
+  if (!user || user.es_admin !== 1) {
+    return res.status(403).json({ mensaje: "Tu cuenta no tiene permisos de administrador" });
+  }
+
+  if (claveAdmin !== CLAVE_ADMIN) {
+    return res.status(401).json({ mensaje: "Código de verificación incorrecto" });
+  }
+
+  return res.json({ autorizado: true });
 });
 
 // Sockets
@@ -121,7 +149,7 @@ io.on("connection", (socket) => {
     salas[codigoSala] = {
       codigo: codigoSala,
       nombre: nombreSala || `Sala de ${usuario}`,
-      categoria: categoria || "TODAS",
+      categoria: categoria ? String(categoria) : "TODAS",
       categoriaNombre: categoriaNombre || "TODAS",
       jugadores: [{ id: socket.id, usuario, puntos: 0 }],
     };
@@ -136,6 +164,8 @@ io.on("connection", (socket) => {
     if (!salas[codigoUpper]) {
       salas[codigoUpper] = {
         codigo: codigoUpper,
+        categoria: "TODAS",
+        categoriaNombre: "TODAS",
         jugadores: [],
       };
     }
@@ -146,25 +176,46 @@ io.on("connection", (socket) => {
     }
 
     socket.join(codigoUpper);
-    socket.emit("unido_exitoso", { codigoSala: codigoUpper });
+    socket.emit("unido_exitoso", {
+      codigoSala: codigoUpper,
+      categoria: sala.categoria,
+      categoriaNombre: sala.categoriaNombre,
+      sala,
+    });
     io.to(codigoUpper).emit("actualizar_jugadores", sala.jugadores);
     io.to(codigoUpper).emit("jugador_unido", { id: socket.id, usuario });
   });
 
   socket.on("dibujar", ({ codigoSala, datosTrazo }) => {
-    socket.to(codigoSala).emit("dibujar", datosTrazo);
+    if (!codigoSala) return;
+    socket.to(codigoSala.toUpperCase()).emit("dibujar", datosTrazo);
   });
 
   socket.on("limpiar_lienzo", (codigoSala) => {
-    io.to(codigoSala).emit("limpiar_lienzo");
+    if (!codigoSala) return;
+    io.to(codigoSala.toUpperCase()).emit("limpiar_lienzo");
   });
 
   socket.on("enviar_mensaje", ({ codigoSala, usuario, mensaje, tipo }) => {
-    io.to(codigoSala).emit("mensaje_recibido", { usuario, mensaje, tipo: tipo || "normal" });
+    if (!codigoSala) return;
+    io.to(codigoSala.toUpperCase()).emit("mensaje_recibido", {
+      usuario,
+      mensaje,
+      tipo: tipo || "normal",
+    });
   });
 
   socket.on("nuevo_turno", ({ codigoSala, datosTurno }) => {
-    io.to(codigoSala).emit("turno_iniciado", datosTurno);
+    if (!codigoSala) return;
+    io.to(codigoSala.toUpperCase()).emit("turno_iniciado", datosTurno);
+  });
+
+  socket.on("palabra_adivinada", ({ codigoSala, usuario, palabra }) => {
+    if (!codigoSala) return;
+    io.to(codigoSala.toUpperCase()).emit("turno_finalizado", {
+      ganador: usuario,
+      palabra,
+    });
   });
 });
 
@@ -222,3 +273,38 @@ app.post("/api/admin/palabras", async (req, res) => {
     return res.status(500).json({ mensaje: "Error al guardar la palabra" });
   }
 });
+
+const CLAVE_ADMIN = 'Moranditequiero';
+
+// Endpoint para verificar usuario + clave maestra
+app.post('/api/admin/verificar', async (req, res) => {
+  const { usuario, claveAdmin } = req.body;
+
+  try {
+    const [filas] = await pool.query(
+      'SELECT es_admin FROM Usuario WHERE usuario = ?',
+      [usuario]
+    );
+
+    if (filas.length === 0 || filas[0].es_admin !== 1) {
+      return res.status(403).json({ mensaje: 'Tu cuenta no tiene permisos de administrador' });
+    }
+
+    if (claveAdmin !== CLAVE_ADMIN) {
+      return res.status(401).json({ mensaje: 'Código de verificación incorrecto' });
+    }
+
+    res.json({ autorizado: true });
+  } catch (err) {
+    res.status(500).json({ mensaje: 'Error al verificar administrador' });
+  }
+});
+
+// Middleware que protege las rutas de admin
+const verificarAdmin = (req, res, next) => {
+  const clave = req.headers['x-admin-key'];
+  if (!clave || clave !== CLAVE_ADMIN) {
+    return res.status(403).json({ mensaje: 'Acceso denegado: verificación requerida' });
+  }
+  next();
+};

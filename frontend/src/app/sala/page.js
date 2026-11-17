@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import io from 'socket.io-client';
+import useSocket from '@/hooks/useSocket';
 import './sala.css';
 
 export default function SalaPage() {
   const router = useRouter();
-  const socketRef = useRef(null);
+  const { socket } = useSocket();
   const categoriaRef = useRef('TODAS');
 
   const [usuario, setUsuario] = useState('');
@@ -31,66 +31,65 @@ export default function SalaPage() {
     const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
     setEsAdmin(Boolean(adminLocal));
 
-    const backendUrl = getBackendUrl();
-    const socket = io(backendUrl);
-    socketRef.current = socket;
-
-    fetch(`${backendUrl}/api/categorias`)
+    fetch(`${getBackendUrl()}/api/categorias`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setCategoriasLista(data);
       })
       .catch((err) => console.error('Error cargando categorías:', err));
+  }, []);
 
-    socket.on('sala_creada', ({ codigoSala }) => {
+  useEffect(() => {
+    if (!socket) return;
+
+    const userLocal = localStorage.getItem('usuario') || 'JugadorAnonimo';
+
+    const onSalaCreada = ({ codigoSala }) => {
       router.push(
         `/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}&categoria=${categoriaRef.current}`
       );
-    });
+    };
 
-    socket.on('unido_exitoso', ({ codigoSala, categoria: catSala }) => {
+    const onUnidoExitoso = ({ codigoSala, categoria: catSala }) => {
       router.push(
         `/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}&categoria=${catSala || 'TODAS'}`
       );
-    });
+    };
+
+    socket.on('sala_creada', onSalaCreada);
+    socket.on('unido_exitoso', onUnidoExitoso);
 
     return () => {
-      socket.disconnect();
+      socket.off('sala_creada', onSalaCreada);
+      socket.off('unido_exitoso', onUnidoExitoso);
     };
-  }, [router]);
+  }, [socket, router]);
 
   const handleCrearSala = (e) => {
     e.preventDefault();
+    if (!socket) return;
     setCreando(true);
     categoriaRef.current = categoria;
-
-    if (!socketRef.current) {
-      socketRef.current = io(getBackendUrl());
-    }
 
     const catObj = categoriasLista.find((c) => String(c.id_categoria) === String(categoria));
     const categoriaNombre = catObj ? catObj.nombre : 'TODAS';
 
-    socketRef.current.emit('crear_sala', {
+    socket.emit('crear_sala', {
       nombreSala,
       usuario,
       categoria,
-      categoriaNombre
+      categoriaNombre,
     });
   };
 
   const handleUnirseSala = (e) => {
     e.preventDefault();
-    if (!codigoIngreso) return;
+    if (!codigoIngreso || !socket) return;
     setEntrando(true);
 
-    if (!socketRef.current) {
-      socketRef.current = io(getBackendUrl());
-    }
-
-    socketRef.current.emit('unirse_sala', {
+    socket.emit('unirse_sala', {
       codigoSala: codigoIngreso.toUpperCase(),
-      usuario
+      usuario,
     });
   };
 
@@ -106,7 +105,9 @@ export default function SalaPage() {
         <div className="sala-header">
           <div>
             <h1 className="sala-title">ARGENTILLO 🎨</h1>
-            <p className="sala-subtitle">Jugador: <span>{usuario}</span></p>
+            <p className="sala-subtitle">
+              Jugador: <span>{usuario}</span>
+            </p>
           </div>
           <button onClick={handleCerrarSesion} className="sala-logout-btn">
             Salir

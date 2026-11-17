@@ -2,30 +2,29 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import io from 'socket.io-client';
+import useSocket from '@/hooks/useSocket';
 
 const COLORES = [
-  '#000000', // Negro
-  '#ef4444', // Rojo
-  '#3b82f6', // Azul
-  '#22c55e', // Verde
-  '#eab308', // Amarillo
-  '#a855f7', // Violeta
-  '#f97316', // Naranja
-  '#92400e', // Marrón
-  '#ffffff'  // Goma de borrar
+  '#000000',
+  '#ef4444',
+  '#3b82f6',
+  '#22c55e',
+  '#eab308',
+  '#a855f7',
+  '#f97316',
+  '#92400e',
+  '#ffffff',
 ];
 
 function JuegoContenido() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { socket } = useSocket();
 
   const codigoSala = (searchParams.get('codigo') || '').toUpperCase();
   const usuario = searchParams.get('usuario') || 'Jugador';
   const categoriaUrl = searchParams.get('categoria') || 'TODAS';
 
-  // Refs persistentes (sobreviven al Fast Refresh de Next.js)
-  const socketRef = useRef(null);
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef({ x: 0, y: 0 });
@@ -33,7 +32,6 @@ function JuegoContenido() {
   const palabraActualRef = useRef('');
   const yaAdivinoRef = useRef(false);
 
-  // Estados de la partida
   const [jugadores, setJugadores] = useState([]);
   const [categoriaSala, setCategoriaSala] = useState(categoriaUrl);
   const [dibujante, setDibujante] = useState('');
@@ -41,7 +39,6 @@ function JuegoContenido() {
   const [turnoActivo, setTurnoActivo] = useState(false);
   const [tiempoRestante, setTiempoRestante] = useState(60);
 
-  // Estados de dibujo y chat
   const [colorActual, setColorActual] = useState('#000000');
   const [mensajes, setMensajes] = useState([]);
   const [textoChat, setTextoChat] = useState('');
@@ -54,7 +51,6 @@ function JuegoContenido() {
       ? `http://${window.location.hostname}:4000`
       : 'http://localhost:4000';
 
-  // Función auxiliar para dibujar un segmento en el canvas
   const trazarLinea = (ctx, x0, y0, x1, y1, color, grosor) => {
     ctx.beginPath();
     ctx.moveTo(x0, y0);
@@ -75,7 +71,6 @@ function JuegoContenido() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   };
 
-  // Inicializar canvas blanco y conexión Socket.io
   useEffect(() => {
     limpiarCanvasLocal();
 
@@ -84,12 +79,11 @@ function JuegoContenido() {
       return;
     }
 
-    const socket = io(getBackendUrl());
-    socketRef.current = socket;
+    if (!socket) return;
 
     socket.emit('unirse_sala', { codigoSala, usuario });
 
-    socket.on('unido_exitoso', (data) => {
+    const onUnidoExitoso = (data) => {
       if (data?.categoria && data.categoria !== 'TODAS') {
         categoriaRef.current = String(data.categoria);
         setCategoriaSala(String(data.categoria));
@@ -97,31 +91,31 @@ function JuegoContenido() {
       if (data?.sala?.jugadores) {
         setJugadores(data.sala.jugadores);
       }
-    });
+    };
 
-    socket.on('actualizar_jugadores', (lista) => {
+    const onActualizarJugadores = (lista) => {
       setJugadores(lista);
-    });
+    };
 
-    socket.on('jugador_unido', ({ usuario: nuevoUsuario }) => {
+    const onJugadorUnido = ({ usuario: nuevoUsuario }) => {
       setMensajes((prev) => [
         ...prev,
-        { usuario: 'Sistema', mensaje: `${nuevoUsuario} se unió a la sala`, tipo: 'sistema' }
+        { usuario: 'Sistema', mensaje: `${nuevoUsuario} se unió a la sala`, tipo: 'sistema' },
       ]);
-    });
+    };
 
-    socket.on('dibujar', (datos) => {
+    const onDibujar = (datos) => {
       const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
       const grosorRemoto = datos.grosor || (datos.color === '#ffffff' ? 28 : 4);
       trazarLinea(ctx, datos.x0, datos.y0, datos.x1, datos.y1, datos.color, grosorRemoto);
-    });
+    };
 
-    socket.on('limpiar_lienzo', () => {
+    const onLimpiarLienzo = () => {
       limpiarCanvasLocal();
-    });
+    };
 
-    socket.on('turno_iniciado', (datosTurno) => {
+    const onTurnoIniciado = (datosTurno) => {
       setDibujante(datosTurno.dibujante);
       setPalabraSecreta(datosTurno.palabra);
       palabraActualRef.current = datosTurno.palabra;
@@ -135,21 +129,34 @@ function JuegoContenido() {
         {
           usuario: 'Sistema',
           mensaje: `🎨 ¡Comenzó el turno! Dibuja: ${datosTurno.dibujante}`,
-          tipo: 'sistema'
-        }
+          tipo: 'sistema',
+        },
       ]);
-    });
+    };
 
-    socket.on('mensaje_recibido', (msg) => {
+    const onMensajeRecibido = (msg) => {
       setMensajes((prev) => [...prev, msg]);
-    });
+    };
+
+    socket.on('unido_exitoso', onUnidoExitoso);
+    socket.on('actualizar_jugadores', onActualizarJugadores);
+    socket.on('jugador_unido', onJugadorUnido);
+    socket.on('dibujar', onDibujar);
+    socket.on('limpiar_lienzo', onLimpiarLienzo);
+    socket.on('turno_iniciado', onTurnoIniciado);
+    socket.on('mensaje_recibido', onMensajeRecibido);
 
     return () => {
-      socket.disconnect();
+      socket.off('unido_exitoso', onUnidoExitoso);
+      socket.off('actualizar_jugadores', onActualizarJugadores);
+      socket.off('jugador_unido', onJugadorUnido);
+      socket.off('dibujar', onDibujar);
+      socket.off('limpiar_lienzo', onLimpiarLienzo);
+      socket.off('turno_iniciado', onTurnoIniciado);
+      socket.off('mensaje_recibido', onMensajeRecibido);
     };
-  }, [codigoSala, usuario, router]);
+  }, [socket, codigoSala, usuario, router]);
 
-  // Temporizador del turno
   useEffect(() => {
     if (!turnoActivo) return;
 
@@ -163,8 +170,8 @@ function JuegoContenido() {
             {
               usuario: 'Sistema',
               mensaje: `⏰ ¡Tiempo terminado! La palabra era: ${palabraActualRef.current}`,
-              tipo: 'sistema'
-            }
+              tipo: 'sistema',
+            },
           ]);
           return 0;
         }
@@ -175,31 +182,29 @@ function JuegoContenido() {
     return () => clearInterval(intervalo);
   }, [turnoActivo]);
 
-  // Iniciar turno y pedir palabra filtrada por categoría
   const handleIniciarTurno = async () => {
+    if (!socket) return;
     try {
-      const backendUrl = getBackendUrl();
       const res = await fetch(
-        `${backendUrl}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
+        `${getBackendUrl()}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
       );
       const data = await res.json();
       const palabraElegida = (data?.palabra || 'MATE').toUpperCase();
 
-      socketRef.current?.emit('limpiar_lienzo', codigoSala);
-      socketRef.current?.emit('nuevo_turno', {
+      socket.emit('limpiar_lienzo', codigoSala);
+      socket.emit('nuevo_turno', {
         codigoSala,
         datosTurno: {
           dibujante: usuario,
           palabra: palabraElegida,
-          categoria: categoriaRef.current
-        }
+          categoria: categoriaRef.current,
+        },
       });
     } catch (error) {
       console.error('Error al obtener palabra:', error);
     }
   };
 
-  // Coordenadas exactas escaladas al tamaño real del canvas (800x500)
   const obtenerCoordenadas = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
@@ -208,7 +213,7 @@ function JuegoContenido() {
 
     return {
       x: ((clientX - rect.left) / rect.width) * canvas.width,
-      y: ((clientY - rect.top) / rect.height) * canvas.height
+      y: ((clientY - rect.top) / rect.height) * canvas.height,
     };
   };
 
@@ -239,7 +244,7 @@ function JuegoContenido() {
       grosor
     );
 
-    socketRef.current?.emit('dibujar', {
+    socket?.emit('dibujar', {
       codigoSala,
       datosTrazo: {
         x0: lastPosRef.current.x,
@@ -247,8 +252,8 @@ function JuegoContenido() {
         x1: posActual.x,
         y1: posActual.y,
         color: colorActual,
-        grosor
-      }
+        grosor,
+      },
     });
 
     lastPosRef.current = posActual;
@@ -260,14 +265,13 @@ function JuegoContenido() {
 
   const handleLimpiarTodo = () => {
     limpiarCanvasLocal();
-    socketRef.current?.emit('limpiar_lienzo', codigoSala);
+    socket?.emit('limpiar_lienzo', codigoSala);
   };
 
-  // Enviar mensaje o verificar si adivinó la palabra
   const handleEnviarMensaje = (e) => {
     e.preventDefault();
     const texto = textoChat.trim();
-    if (!texto) return;
+    if (!texto || !socket) return;
 
     const palabraObjetivo = palabraActualRef.current.trim().toUpperCase();
 
@@ -279,18 +283,18 @@ function JuegoContenido() {
       texto.toUpperCase() === palabraObjetivo
     ) {
       yaAdivinoRef.current = true;
-      socketRef.current?.emit('enviar_mensaje', {
+      socket.emit('enviar_mensaje', {
         codigoSala,
         usuario,
         mensaje: '🎉 ¡ADIVINÓ LA PALABRA!',
-        tipo: 'acierto'
+        tipo: 'acierto',
       });
     } else {
-      socketRef.current?.emit('enviar_mensaje', {
+      socket.emit('enviar_mensaje', {
         codigoSala,
         usuario,
         mensaje: texto,
-        tipo: 'normal'
+        tipo: 'normal',
       });
     }
 
@@ -311,10 +315,9 @@ function JuegoContenido() {
         backgroundColor: '#0f172a',
         color: '#f8fafc',
         padding: '1rem',
-        fontFamily: 'system-ui, sans-serif'
+        fontFamily: 'system-ui, sans-serif',
       }}
     >
-      {/* Barra superior */}
       <header
         style={{
           display: 'flex',
@@ -325,7 +328,7 @@ function JuegoContenido() {
           padding: '0.75rem 1.25rem',
           borderRadius: '12px',
           marginBottom: '1rem',
-          gap: '1rem'
+          gap: '1rem',
         }}
       >
         <div>
@@ -340,7 +343,6 @@ function JuegoContenido() {
           </span>
         </div>
 
-        {/* Palabra a dibujar o guiones para adivinar */}
         <div
           style={{
             fontSize: '1.3rem',
@@ -349,7 +351,7 @@ function JuegoContenido() {
             backgroundColor: '#0f172a',
             padding: '0.4rem 1.2rem',
             borderRadius: '8px',
-            border: '1px solid #334155'
+            border: '1px solid #334155',
           }}
         >
           {turnoActivo
@@ -365,7 +367,7 @@ function JuegoContenido() {
               backgroundColor: tiempoRestante <= 10 && turnoActivo ? '#ef4444' : '#334155',
               padding: '0.4rem 0.8rem',
               borderRadius: '8px',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
             }}
           >
             ⏱️ {tiempoRestante}s
@@ -380,7 +382,7 @@ function JuegoContenido() {
               border: 'none',
               padding: '0.5rem 1rem',
               borderRadius: '8px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             🎲 Dibujar yo
@@ -394,7 +396,7 @@ function JuegoContenido() {
               border: 'none',
               padding: '0.5rem 0.9rem',
               borderRadius: '8px',
-              cursor: 'pointer'
+              cursor: 'pointer',
             }}
           >
             Salir
@@ -402,21 +404,19 @@ function JuegoContenido() {
         </div>
       </header>
 
-      {/* Zona principal: Jugadores | Lienzo | Chat */}
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: '220px 1fr 300px',
           gap: '1rem',
-          alignItems: 'start'
+          alignItems: 'start',
         }}
       >
-        {/* Panel Jugadores */}
         <aside
           style={{
             backgroundColor: '#1e293b',
             padding: '1rem',
-            borderRadius: '12px'
+            borderRadius: '12px',
           }}
         >
           <h3 style={{ marginTop: 0, marginBottom: '0.75rem', color: '#38bdf8' }}>
@@ -432,7 +432,7 @@ function JuegoContenido() {
                   borderRadius: '8px',
                   backgroundColor: j.usuario === dibujante ? '#3b82f6' : '#0f172a',
                   display: 'flex',
-                  justifyContent: 'space-between'
+                  justifyContent: 'space-between',
                 }}
               >
                 <span>
@@ -444,13 +444,12 @@ function JuegoContenido() {
           </ul>
         </aside>
 
-        {/* Panel Central: Canvas + Paleta */}
         <section
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '0.75rem'
+            gap: '0.75rem',
           }}
         >
           <canvas
@@ -471,11 +470,10 @@ function JuegoContenido() {
               borderRadius: '12px',
               border: '3px solid #334155',
               cursor: !esDibujante && turnoActivo ? 'not-allowed' : esGoma ? 'cell' : 'crosshair',
-              touchAction: 'none'
+              touchAction: 'none',
             }}
           />
 
-          {/* Barra de colores y goma de borrar */}
           <div
             style={{
               display: 'flex',
@@ -484,7 +482,7 @@ function JuegoContenido() {
               gap: '0.5rem',
               backgroundColor: '#1e293b',
               padding: '0.6rem 1rem',
-              borderRadius: '12px'
+              borderRadius: '12px',
             }}
           >
             {COLORES.map((c) => {
@@ -508,7 +506,7 @@ function JuegoContenido() {
                     fontSize: '18px',
                     border: seleccionado ? '3px solid #a855f7' : '2px solid #94a3b8',
                     transform: seleccionado ? 'scale(1.12)' : 'scale(1)',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
                   }}
                 >
                   {esBotonGoma ? '🧽' : ''}
@@ -528,7 +526,7 @@ function JuegoContenido() {
                 padding: '0.5rem 0.9rem',
                 borderRadius: '8px',
                 fontWeight: 'bold',
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             >
               🗑️ Limpiar todo
@@ -536,7 +534,6 @@ function JuegoContenido() {
           </div>
         </section>
 
-        {/* Panel Chat / Adivinar */}
         <aside
           style={{
             backgroundColor: '#1e293b',
@@ -544,7 +541,7 @@ function JuegoContenido() {
             borderRadius: '12px',
             display: 'flex',
             flexDirection: 'column',
-            height: '560px'
+            height: '560px',
           }}
         >
           <h3 style={{ marginTop: 0, marginBottom: '0.75rem', color: '#38bdf8' }}>
@@ -561,7 +558,7 @@ function JuegoContenido() {
               marginBottom: '0.75rem',
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.4rem'
+              gap: '0.4rem',
             }}
           >
             {mensajes.map((m, i) => (
@@ -577,7 +574,7 @@ function JuegoContenido() {
                       ? '#1e293b'
                       : 'transparent',
                   color: m.tipo === 'acierto' ? '#86efac' : '#f1f5f9',
-                  fontSize: '0.9rem'
+                  fontSize: '0.9rem',
                 }}
               >
                 {m.tipo !== 'sistema' && <strong>{m.usuario}: </strong>}
@@ -590,9 +587,7 @@ function JuegoContenido() {
             <input
               type="text"
               placeholder={
-                esDibujante && turnoActivo
-                  ? 'Estás dibujando...'
-                  : 'Escribí tu respuesta...'
+                esDibujante && turnoActivo ? 'Estás dibujando...' : 'Escribí tu respuesta...'
               }
               disabled={esDibujante && turnoActivo}
               value={textoChat}
@@ -603,7 +598,7 @@ function JuegoContenido() {
                 borderRadius: '8px',
                 border: '1px solid #334155',
                 backgroundColor: '#0f172a',
-                color: '#fff'
+                color: '#fff',
               }}
             />
             <button
@@ -616,7 +611,7 @@ function JuegoContenido() {
                 border: 'none',
                 padding: '0.55rem 0.9rem',
                 borderRadius: '8px',
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             >
               Enviar

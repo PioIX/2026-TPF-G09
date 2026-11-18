@@ -2,16 +2,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const mysql = require("mysql2/promise");
-
-// Evita cierres del servidor ante errores no capturados
-process.on("unhandledRejection", (reason) => {
-  console.error("⚠️ Error de Promesa no capturado:", reason);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("💥 Excepción no capturada:", err.message);
-});
+const { realizarQuery } = require("./modulos/mysql");
 
 const app = express();
 app.use(cors());
@@ -19,41 +10,42 @@ app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+  },
 });
 
-// Configuración DB con fallback de variables de entorno
-const db = mysql.createPool({
-  host: process.env.MYSQL_HOST || "10.1.5.205",
-  user: process.env.MYSQL_USERNAME || "2026_5INF_G09",
-  password: process.env.MYSQL_PASSWORD || "brbr",
-  database: process.env.MYSQL_DB || "2026_5INF_G09",
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
-
-
+const CLAVE_ADMIN = process.env.CLAVE_ADMIN || "admin2026";
 const salas = {};
 
-// Categorías
+// Middleware de protección para rutas de administrador
+const verificarAdmin = (req, res, next) => {
+  const clave = req.headers["x-admin-key"];
+  if (!clave || clave !== CLAVE_ADMIN) {
+    return res.status(403).json({ mensaje: "Acceso denegado: clave de administrador inválida" });
+  }
+  next();
+};
+
+// ================= RUTAS HTTP =================
+
+// Obtener todas las categorías
 app.get("/api/categorias", async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT id_categoria, nombre FROM categoria");
+    const rows = await realizarQuery("SELECT id_categoria, nombre FROM categoria");
     return res.json(rows);
   } catch (error) {
-    console.error("🔴 Error en /api/categorias:", error.message);
-    return res.status(200).json([]);
+    return res.status(500).json({ mensaje: "Error al obtener categorías" });
   }
 });
 
-// Obtener palabra aleatoria según la categoría elegida
+// Obtener palabra aleatoria según categoría
 app.get("/api/palabra", async (req, res) => {
   const catParam = req.query.id_categoria || req.query.categoria;
-  console.log("🎯 Buscando palabra para categoría:", catParam);
 
   try {
-    let query = "SELECT p.palabra FROM Palabra p";
+    let query = "SELECT palabra FROM Palabra";
     let params = [];
 
     if (
@@ -62,86 +54,167 @@ app.get("/api/palabra", async (req, res) => {
       catParam !== "null" &&
       catParam !== "undefined"
     ) {
-      if (!isNaN(catParam)) {
-        query += " WHERE p.id_categoria = ?";
-        params.push(Number(catParam));
-      } else {
-        query += " INNER JOIN Categoria c ON p.id_categoria = c.id_categoria WHERE LOWER(c.nombre) LIKE LOWER(?)";
-        params.push(`%${catParam}%`);
-      }
+      query += " WHERE id_categoria = ?";
+      params.push(Number(catParam));
     }
 
     query += " ORDER BY RAND() LIMIT 1";
-
-    const [rows] = await db.query(query, params);
+    const rows = await realizarQuery(query, params);
 
     if (rows && rows.length > 0) {
       return res.json({ palabra: rows[0].palabra.trim().toUpperCase() });
-    } else {
-      console.log("⚠️ La consulta devolvió 0 palabras para la categoría:", catParam);
     }
+    return res.status(404).json({ mensaje: "No hay palabras cargadas en esta categoría" });
   } catch (error) {
-    console.error("🔴 Error SQL al filtrar palabra:", error.message);
+    return res.status(500).json({ mensaje: "Error al buscar palabra" });
   }
-  // (Acá dejá tu respaldo por si falla la BD)
+});
 
-  // Fallback si la categoría elegida no tiene palabras cargadas en la BD
-  const palabrasRespaldo = ["MATE", "EMPANADA", "OBELISCO", "ASADO", "CARPINCHO", "MESSI"];
-  const palabraAzar = palabrasRespaldo[Math.floor(Math.random() * palabrasRespaldo.length)];
-
-  return res.json({ palabra: palabraAzar });
-  });
-
-// Login y Registro
-app.post("/api/registro", (req, res) => {
+// Registro de usuario en MySQL
+app.post("/api/registro", async (req, res) => {
   const { usuario, email, password } = req.body;
-  if (!usuario || !email || !password) return res.status(400).json({ mensaje: "Faltan datos" });
-  usuariosBD.push({ usuario, email, password });
-  return res.status(201).json({ mensaje: "Usuario creado", usuario: { usuario, email } });
+  if (!usuario || !email || !password) {
+    return res.status(400).json({ mensaje: "Faltan datos obligatorios" });
+  }
+
+  try {
+    const existentes = await realizarQuery(
+      "SELECT id_usuario FROM Usuario WHERE usuario = ? OR email = ?",
+      [usuario.trim(), email.trim()]
+    );
+
+    if (existentes.length > 0) {
+      return res.status(400).json({ mensaje: "El usuario o email ya está registrado" });
+    }
+
+    await realizarQuery(
+      "INSERT INTO Usuario (usuario, email, password, es_admin) VALUES (?, ?, ?, 0)",
+      [usuario.trim(), email.trim(), password]
+    );
+
+    return res.status(201).json({ mensaje: "Usuario creado con éxito" });
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al registrar usuario en la base de datos" });
+  }
 });
 
-const usuariosBD = [
-  {
-    id_usuario: 1,
-    usuario: "admin",
-    email: "admin@argentillo.com",
-    password: "admin123",
-    es_admin: 1
-  }
-];
-
-app.post("/api/login", (req, res) => {
+// Login de usuario contra MySQL
+app.post("/api/login", async (req, res) => {
   const { usuario, password } = req.body;
-  if (!usuario) return res.status(400).json({ mensaje: "Ingresá un usuario" });
-
-  let user = usuariosBD.find(
-    (u) => (u.usuario === usuario || u.email === usuario) && u.password === password
-  );
-
-  if (!user) {
-    user = { usuario, password: password || "123456", es_admin: 0 };
-    usuariosBD.push(user);
+  if (!usuario || !password) {
+    return res.status(400).json({ mensaje: "Ingresá usuario y contraseña" });
   }
 
-  return res.json({ usuario: user });
+  try {
+    const rows = await realizarQuery(
+      "SELECT id_usuario, usuario, es_admin FROM Usuario WHERE (usuario = ? OR email = ?) AND password = ?",
+      [usuario.trim(), usuario.trim(), password]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ mensaje: "Usuario o contraseña incorrectos" });
+    }
+
+    return res.json({
+      mensaje: "Login exitoso",
+      usuario: rows[0],
+    });
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error interno en el login" });
+  }
 });
 
-app.post("/api/admin/verificar", (req, res) => {
+// Verificar clave secundaria de Administrador
+app.post("/api/admin/verificar", async (req, res) => {
   const { usuario, claveAdmin } = req.body;
-  const user = usuariosBD.find((u) => u.usuario === usuario);
 
-  if (!user || user.es_admin !== 1) {
-    return res.status(403).json({ mensaje: "Tu cuenta no tiene permisos de administrador" });
+  try {
+    const rows = await realizarQuery(
+      "SELECT es_admin FROM Usuario WHERE usuario = ?",
+      [usuario]
+    );
+
+    if (rows.length === 0 || rows[0].es_admin !== 1) {
+      return res.status(403).json({ mensaje: "Tu cuenta no tiene permisos de administrador" });
+    }
+
+    if (claveAdmin !== CLAVE_ADMIN) {
+      return res.status(401).json({ mensaje: "Código de verificación incorrecto" });
+    }
+
+    return res.json({ autorizado: true });
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al verificar administrador" });
   }
-
-  if (claveAdmin !== CLAVE_ADMIN) {
-    return res.status(401).json({ mensaje: "Código de verificación incorrecto" });
-  }
-
-  return res.json({ autorizado: true });
 });
 
-// Sockets
+// ================= CRUD DE PALABRAS (ADMIN) =================
+
+// GET: Listar todas las palabras
+app.get("/api/admin/palabras", verificarAdmin, async (req, res) => {
+  try {
+    const rows = await realizarQuery(
+      `SELECT p.id_palabra, p.palabra, p.id_categoria, c.nombre AS categoria
+       FROM Palabra p
+       INNER JOIN categoria c ON p.id_categoria = c.id_categoria
+       ORDER BY p.id_palabra DESC`
+    );
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al listar palabras" });
+  }
+});
+
+// POST: Crear palabra
+app.post("/api/admin/palabras", verificarAdmin, async (req, res) => {
+  const { palabra, id_categoria } = req.body;
+  if (!palabra || !id_categoria) {
+    return res.status(400).json({ mensaje: "Faltan datos obligatorios" });
+  }
+
+  try {
+    await realizarQuery(
+      "INSERT INTO Palabra (palabra, id_categoria) VALUES (?, ?)",
+      [palabra.trim().toUpperCase(), Number(id_categoria)]
+    );
+    return res.status(201).json({ mensaje: "Palabra cargada con éxito" });
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al guardar la palabra" });
+  }
+});
+
+// PUT: Modificar palabra existente
+app.put("/api/admin/palabras/:id", verificarAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { palabra, id_categoria } = req.body;
+  if (!palabra || !id_categoria) {
+    return res.status(400).json({ mensaje: "Faltan datos para actualizar" });
+  }
+
+  try {
+    await realizarQuery(
+      "UPDATE Palabra SET palabra = ?, id_categoria = ? WHERE id_palabra = ?",
+      [palabra.trim().toUpperCase(), Number(id_categoria), Number(id)]
+    );
+    return res.json({ mensaje: "Palabra actualizada correctamente" });
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al actualizar la palabra" });
+  }
+});
+
+// DELETE: Eliminar palabra
+app.delete("/api/admin/palabras/:id", verificarAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await realizarQuery("DELETE FROM Palabra WHERE id_palabra = ?", [Number(id)]);
+    return res.json({ mensaje: "Palabra eliminada correctamente" });
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al eliminar la palabra" });
+  }
+});
+
+// ================= SOCKET.IO =================
+
 io.on("connection", (socket) => {
   socket.on("crear_sala", ({ nombreSala, usuario, categoria, categoriaNombre }) => {
     const codigoSala = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -221,90 +294,5 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Servidor backend escuchando en http://localhost:${PORT}`);
+  console.log(`Servidor backend escuchando en http://localhost:${PORT}`);
 });
-// Endpoint de Login
-app.post("/api/login", async (req, res) => {
-  const { usuario, password } = req.body;
-
-  try {
-    const [rows] = await db.query(
-      "SELECT id_usuario, usuario, es_admin FROM Usuario WHERE usuario = ? AND password = ?",
-      [usuario, password]
-    );
-
-    if (rows.length === 0) {
-      return res.status(401).json({ mensaje: "Usuario o contraseña incorrectos" });
-    }
-
-    const user = rows[0];
-
-    return res.json({
-      mensaje: "Login exitoso",
-      usuario: {
-        id: user.id_usuario,
-        usuario: user.usuario,
-        esAdmin: Boolean(user.es_admin)
-      }
-    });
-  } catch (error) {
-    console.error("🔴 Error en login:", error);
-    return res.status(500).json({ mensaje: "Error interno del servidor" });
-  }
-});
-
-// Endpoint para que el Admin agregue palabras
-app.post("/api/admin/palabras", async (req, res) => {
-  const { palabra, id_categoria } = req.body;
-
-  if (!palabra || !id_categoria) {
-    return res.status(400).json({ mensaje: "Faltan datos obligatorios" });
-  }
-
-  try {
-    await db.query(
-      "INSERT INTO Palabra (palabra, id_categoria) VALUES (?, ?)",
-      [palabra.trim().toUpperCase(), id_categoria]
-    );
-
-    return res.json({ mensaje: "Palabra cargada con éxito" });
-  } catch (error) {
-    console.error("🔴 Error agregando palabra:", error);
-    return res.status(500).json({ mensaje: "Error al guardar la palabra" });
-  }
-});
-
-const CLAVE_ADMIN = 'Moranditequiero';
-
-// Endpoint para verificar usuario + clave maestra
-app.post('/api/admin/verificar', async (req, res) => {
-  const { usuario, claveAdmin } = req.body;
-
-  try {
-    const [filas] = await pool.query(
-      'SELECT es_admin FROM Usuario WHERE usuario = ?',
-      [usuario]
-    );
-
-    if (filas.length === 0 || filas[0].es_admin !== 1) {
-      return res.status(403).json({ mensaje: 'Tu cuenta no tiene permisos de administrador' });
-    }
-
-    if (claveAdmin !== CLAVE_ADMIN) {
-      return res.status(401).json({ mensaje: 'Código de verificación incorrecto' });
-    }
-
-    res.json({ autorizado: true });
-  } catch (err) {
-    res.status(500).json({ mensaje: 'Error al verificar administrador' });
-  }
-});
-
-// Middleware que protege las rutas de admin
-const verificarAdmin = (req, res, next) => {
-  const clave = req.headers['x-admin-key'];
-  if (!clave || clave !== CLAVE_ADMIN) {
-    return res.status(403).json({ mensaje: 'Acceso denegado: verificación requerida' });
-  }
-  next();
-};

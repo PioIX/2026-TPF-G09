@@ -16,8 +16,13 @@ export default function RegistroPage() {
     setError('');
     setCargando(true);
 
+    const backendUrl =
+      typeof window !== 'undefined'
+        ? `http://${window.location.hostname}:4000`
+        : 'http://localhost:4000';
+
     try {
-      const res = await fetch('http://localhost:4000/api/registro', {
+      const res = await fetch(`${backendUrl}/api/registro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -40,7 +45,6 @@ export default function RegistroPage() {
   return (
     <main className="registro-container">
       <div className="registro-card">
-        
         <div className="registro-header">
           <h1 className="registro-title">ARGENTILLO 🎨</h1>
           <p className="registro-subtitle">¡Sumate a la comunidad!</p>
@@ -48,11 +52,7 @@ export default function RegistroPage() {
 
         <h2 className="registro-form-title">Crear Cuenta</h2>
 
-        {error && (
-          <div className="registro-error">
-            ⚠️ {error}
-          </div>
-        )}
+        {error && <div className="registro-error">⚠️ {error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="registro-group">
@@ -102,7 +102,6 @@ export default function RegistroPage() {
             Iniciá sesión
           </Link>
         </div>
-
       </div>
     </main>
   );

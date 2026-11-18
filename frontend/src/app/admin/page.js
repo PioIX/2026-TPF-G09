@@ -15,12 +15,27 @@ export default function AdminPage() {
   const [nuevaPalabra, setNuevaPalabra] = useState('');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('');
   const [categorias, setCategorias] = useState([]);
+  const [palabras, setPalabras] = useState([]);
+  const [editandoId, setEditandoId] = useState(null);
+  const [editTexto, setEditTexto] = useState('');
+  const [editCat, setEditCat] = useState('');
   const [mensaje, setMensaje] = useState('');
 
   const getBackendUrl = () =>
     typeof window !== 'undefined'
       ? `http://${window.location.hostname}:4000`
       : 'http://localhost:4000';
+
+  const cargarPalabras = (key) => {
+    fetch(`${getBackendUrl()}/api/admin/palabras`, {
+      headers: { 'x-admin-key': key },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setPalabras(data);
+      })
+      .catch((err) => console.error('Error cargando palabras:', err));
+  };
 
   useEffect(() => {
     const esAdminRaw = localStorage.getItem('esAdmin');
@@ -29,12 +44,6 @@ export default function AdminPage() {
     if (!esAdmin || esAdmin === 0 || esAdmin === '0') {
       router.push('/sala');
       return;
-    }
-
-    const claveGuardada = sessionStorage.getItem('adminKey');
-    if (claveGuardada) {
-      setClaveActiva(claveGuardada);
-      setVerificado(true);
     }
 
     fetch(`${getBackendUrl()}/api/categorias`)
@@ -46,6 +55,13 @@ export default function AdminPage() {
         }
       })
       .catch((err) => console.error('Error cargando categorías:', err));
+
+    const claveGuardada = sessionStorage.getItem('adminKey');
+    if (claveGuardada) {
+      setClaveActiva(claveGuardada);
+      setVerificado(true);
+      cargarPalabras(claveGuardada);
+    }
   }, [router]);
 
   const handleVerificar = async (e) => {
@@ -61,17 +77,19 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           usuario: usuarioActual,
-          claveAdmin: claveInput.trim()
-        })
+          claveAdmin: claveInput.trim(),
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.mensaje || 'Clave incorrecta');
 
-      sessionStorage.setItem('adminKey', claveInput.trim());
-      setClaveActiva(claveInput.trim());
+      const key = claveInput.trim();
+      sessionStorage.setItem('adminKey', key);
+      setClaveActiva(key);
       setVerificado(true);
       setMensaje('');
+      cargarPalabras(key);
     } catch (err) {
       setMensaje(`⚠️ ${err.message}`);
     } finally {
@@ -88,12 +106,12 @@ export default function AdminPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-key': claveActiva
+          'x-admin-key': claveActiva,
         },
         body: JSON.stringify({
           palabra: nuevaPalabra,
-          id_categoria: categoriaSeleccionada
-        })
+          id_categoria: categoriaSeleccionada,
+        }),
       });
 
       const data = await res.json();
@@ -101,6 +119,55 @@ export default function AdminPage() {
 
       setMensaje('✅ Palabra agregada correctamente');
       setNuevaPalabra('');
+      cargarPalabras(claveActiva);
+    } catch (err) {
+      setMensaje(`⚠️ ${err.message}`);
+    }
+  };
+
+  const iniciarEdicion = (p) => {
+    setEditandoId(p.id_palabra);
+    setEditTexto(p.palabra);
+    setEditCat(p.id_categoria);
+  };
+
+  const handleGuardarEdicion = async (id) => {
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/admin/palabras/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': claveActiva,
+        },
+        body: JSON.stringify({
+          palabra: editTexto,
+          id_categoria: editCat,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.mensaje);
+
+      setEditandoId(null);
+      setMensaje('✅ Palabra actualizada');
+      cargarPalabras(claveActiva);
+    } catch (err) {
+      setMensaje(`⚠️ ${err.message}`);
+    }
+  };
+
+  const handleEliminarPalabra = async (id) => {
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/admin/palabras/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-key': claveActiva },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.mensaje);
+
+      setMensaje('🗑️ Palabra eliminada');
+      cargarPalabras(claveActiva);
     } catch (err) {
       setMensaje(`⚠️ ${err.message}`);
     }
@@ -201,6 +268,80 @@ export default function AdminPage() {
             Guardar Palabra 💾
           </button>
         </form>
+
+        <hr className="sala-divider" />
+
+        <h2 className="sala-section-title">Palabras Cargadas ({palabras.length})</h2>
+        <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+          {palabras.map((p) => (
+            <div
+              key={p.id_palabra}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 0',
+                borderBottom: '1px solid #334155',
+              }}
+            >
+              {editandoId === p.id_palabra ? (
+                <>
+                  <input
+                    type="text"
+                    value={editTexto}
+                    onChange={(e) => setEditTexto(e.target.value)}
+                    className="sala-input"
+                    style={{ padding: '0.35rem' }}
+                  />
+                  <select
+                    value={editCat}
+                    onChange={(e) => setEditCat(e.target.value)}
+                    className="sala-select"
+                    style={{ padding: '0.35rem' }}
+                  >
+                    {categorias.map((c) => (
+                      <option key={c.id_categoria} value={c.id_categoria}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleGuardarEdicion(p.id_palabra)}
+                    className="sala-logout-btn"
+                    style={{ backgroundColor: '#22c55e', color: '#000' }}
+                  >
+                    Guardar
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>
+                    <strong>{p.palabra}</strong> <small>({p.categoria})</small>
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => iniciarEdicion(p)}
+                      className="sala-logout-btn"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleEliminarPalabra(p.id_palabra)}
+                      className="sala-logout-btn"
+                      style={{ backgroundColor: '#ef4444' }}
+                    >
+                      Borrar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </main>
   );

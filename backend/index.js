@@ -19,7 +19,6 @@ const io = new Server(server, {
 const CLAVE_ADMIN = process.env.CLAVE_ADMIN || "admin2026";
 const salas = {};
 
-// Middleware de protección para rutas de administrador
 const verificarAdmin = (req, res, next) => {
   const clave = req.headers["x-admin-key"];
   if (!clave || clave !== CLAVE_ADMIN) {
@@ -30,7 +29,6 @@ const verificarAdmin = (req, res, next) => {
 
 // ================= RUTAS HTTP =================
 
-// Obtener todas las categorías
 app.get("/api/categorias", async (req, res) => {
   try {
     const rows = await realizarQuery("SELECT id_categoria, nombre FROM categoria");
@@ -40,7 +38,6 @@ app.get("/api/categorias", async (req, res) => {
   }
 });
 
-// Obtener palabra aleatoria según categoría
 app.get("/api/palabra", async (req, res) => {
   const catParam = req.query.id_categoria || req.query.categoria;
 
@@ -70,7 +67,56 @@ app.get("/api/palabra", async (req, res) => {
   }
 });
 
-// Registro de usuario en MySQL
+// Ranking histórico desde Partida_Usuario + Usuario
+app.get("/api/ranking", async (req, res) => {
+  try {
+    const rows = await realizarQuery(
+      `SELECT u.usuario, COALESCE(SUM(pu.puntaje), 0) AS puntos_totales, COUNT(pu.id_partida) AS partidas_jugadas
+       FROM Usuario u
+       LEFT JOIN Partida_Usuario pu ON u.id_usuario = pu.id_usuario
+       GROUP BY u.id_usuario, u.usuario
+       ORDER BY puntos_totales DESC
+       LIMIT 10`
+    );
+    return res.json(rows);
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al obtener ranking" });
+  }
+});
+
+// Guardar partida y puntajes en Partida y Partida_Usuario
+app.post("/api/partidas", async (req, res) => {
+  const { codigoSala, jugadores } = req.body;
+  if (!jugadores || !Array.isArray(jugadores) || jugadores.length === 0) {
+    return res.status(400).json({ mensaje: "No hay jugadores para guardar" });
+  }
+
+  try {
+    const resultPartida = await realizarQuery(
+      "INSERT INTO Partida (codigo_sala, fecha) VALUES (?, NOW())",
+      [codigoSala || "SALA"]
+    );
+    const idPartida = resultPartida.insertId;
+
+    for (const j of jugadores) {
+      const userRows = await realizarQuery(
+        "SELECT id_usuario FROM Usuario WHERE usuario = ?",
+        [j.usuario]
+      );
+      if (userRows.length > 0) {
+        await realizarQuery(
+          "INSERT INTO Partida_Usuario (id_partida, id_usuario, puntaje) VALUES (?, ?, ?)",
+          [idPartida, userRows[0].id_usuario, Number(j.puntos) || 0]
+        );
+      }
+    }
+
+    return res.status(201).json({ mensaje: "Partida guardada en MySQL", idPartida });
+  } catch (error) {
+    return res.status(500).json({ mensaje: "Error al guardar la partida" });
+  }
+});
+
 app.post("/api/registro", async (req, res) => {
   const { usuario, email, password } = req.body;
   if (!usuario || !email || !password) {
@@ -98,7 +144,6 @@ app.post("/api/registro", async (req, res) => {
   }
 });
 
-// Login de usuario contra MySQL
 app.post("/api/login", async (req, res) => {
   const { usuario, password } = req.body;
   if (!usuario || !password) {
@@ -124,7 +169,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// Verificar clave secundaria de Administrador
 app.post("/api/admin/verificar", async (req, res) => {
   const { usuario, claveAdmin } = req.body;
 
@@ -150,7 +194,6 @@ app.post("/api/admin/verificar", async (req, res) => {
 
 // ================= CRUD DE PALABRAS (ADMIN) =================
 
-// GET: Listar todas las palabras
 app.get("/api/admin/palabras", verificarAdmin, async (req, res) => {
   try {
     const rows = await realizarQuery(
@@ -165,7 +208,6 @@ app.get("/api/admin/palabras", verificarAdmin, async (req, res) => {
   }
 });
 
-// POST: Crear palabra
 app.post("/api/admin/palabras", verificarAdmin, async (req, res) => {
   const { palabra, id_categoria } = req.body;
   if (!palabra || !id_categoria) {
@@ -183,7 +225,6 @@ app.post("/api/admin/palabras", verificarAdmin, async (req, res) => {
   }
 });
 
-// PUT: Modificar palabra existente
 app.put("/api/admin/palabras/:id", verificarAdmin, async (req, res) => {
   const { id } = req.params;
   const { palabra, id_categoria } = req.body;
@@ -202,7 +243,6 @@ app.put("/api/admin/palabras/:id", verificarAdmin, async (req, res) => {
   }
 });
 
-// DELETE: Eliminar palabra
 app.delete("/api/admin/palabras/:id", verificarAdmin, async (req, res) => {
   const { id } = req.params;
   try {
@@ -271,7 +311,17 @@ io.on("connection", (socket) => {
 
   socket.on("enviar_mensaje", ({ codigoSala, usuario, mensaje, tipo }) => {
     if (!codigoSala) return;
-    io.to(codigoSala.toUpperCase()).emit("mensaje_recibido", {
+    const codigoUpper = codigoSala.toUpperCase();
+
+    if (tipo === "acierto" && salas[codigoUpper]) {
+      const jugador = salas[codigoUpper].jugadores.find((j) => j.usuario === usuario);
+      if (jugador) {
+        jugador.puntos += 100;
+      }
+      io.to(codigoUpper).emit("actualizar_jugadores", salas[codigoUpper].jugadores);
+    }
+
+    io.to(codigoUpper).emit("mensaje_recibido", {
       usuario,
       mensaje,
       tipo: tipo || "normal",

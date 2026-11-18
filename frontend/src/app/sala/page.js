@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import useSocket from '@/hooks/useSocket';
+import Modal from '@/components/modal';
+import Boton from '@/components/boton';
 import './sala.css';
 
 export default function SalaPage() {
@@ -16,6 +18,8 @@ export default function SalaPage() {
   const [categoria, setCategoria] = useState('TODAS');
   const [codigoIngreso, setCodigoIngreso] = useState('');
   const [categoriasLista, setCategoriasLista] = useState([]);
+  const [ranking, setRanking] = useState([]);
+  const [mostrarRanking, setMostrarRanking] = useState(false);
   const [creando, setCreando] = useState(false);
   const [entrando, setEntrando] = useState(false);
 
@@ -64,6 +68,16 @@ export default function SalaPage() {
       socket.off('unido_exitoso', onUnidoExitoso);
     };
   }, [socket, router]);
+
+  const abrirRanking = () => {
+    fetch(`${getBackendUrl()}/api/ranking`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setRanking(data);
+        setMostrarRanking(true);
+      })
+      .catch((err) => console.error('Error cargando ranking:', err));
+  };
 
   const handleCrearSala = (e) => {
     e.preventDefault();
@@ -114,15 +128,17 @@ export default function SalaPage() {
           </button>
         </div>
 
-        {esAdmin && (
-          <button
-            onClick={() => router.push('/admin')}
-            className="sala-btn-secondary"
-            style={{ marginBottom: '1.25rem', backgroundColor: '#a855f7', color: '#ffffff' }}
-          >
-            ⚙️ PANEL DE ADMINISTRADOR
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          <Boton variant="secondary" onClick={abrirRanking}>
+            🏆 Ranking Histórico
+          </Boton>
+
+          {esAdmin && (
+            <Boton variant="primary" onClick={() => router.push('/admin')}>
+              ⚙️ Panel Admin
+            </Boton>
+          )}
+        </div>
 
         <form onSubmit={handleCrearSala}>
           <h2 className="sala-section-title">Crear nueva sala</h2>
@@ -182,6 +198,39 @@ export default function SalaPage() {
           </button>
         </form>
       </div>
+
+      {mostrarRanking && (
+        <Modal onClose={() => setMostrarRanking(false)}>
+          <h2 style={{ marginTop: 0, color: '#fbbf24' }}>🏆 Top Jugadores Argentillo</h2>
+          {ranking.length === 0 ? (
+            <p>Todavía no hay partidas registradas.</p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '1rem 0' }}>
+              {ranking.map((r, i) => (
+                <li
+                  key={r.usuario}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '0.5rem 0',
+                    borderBottom: '1px solid #334155',
+                  }}
+                >
+                  <span>
+                    <strong>#{i + 1}</strong> {r.usuario}
+                  </span>
+                  <span>
+                    <strong>{r.puntos_totales} pts</strong> ({r.partidas_jugadas} partidas)
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Boton variant="primary" onClick={() => setMostrarRanking(false)}>
+            Cerrar
+          </Boton>
+        </Modal>
+      )}
     </main>
   );
 }

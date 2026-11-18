@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import useSocket from '@/hooks/useSocket';
+import Modal from '@/components/modal';
+import Boton from '@/components/boton';
 
 const COLORES = [
   '#000000',
@@ -38,6 +40,7 @@ function JuegoContenido() {
   const [palabraSecreta, setPalabraSecreta] = useState('');
   const [turnoActivo, setTurnoActivo] = useState(false);
   const [tiempoRestante, setTiempoRestante] = useState(60);
+  const [modalFinTurno, setModalFinTurno] = useState(null);
 
   const [colorActual, setColorActual] = useState('#000000');
   const [mensajes, setMensajes] = useState([]);
@@ -116,6 +119,7 @@ function JuegoContenido() {
     };
 
     const onTurnoIniciado = (datosTurno) => {
+      setModalFinTurno(null);
       setDibujante(datosTurno.dibujante);
       setPalabraSecreta(datosTurno.palabra);
       palabraActualRef.current = datosTurno.palabra;
@@ -165,14 +169,7 @@ function JuegoContenido() {
         if (prev <= 1) {
           clearInterval(intervalo);
           setTurnoActivo(false);
-          setMensajes((m) => [
-            ...m,
-            {
-              usuario: 'Sistema',
-              mensaje: `⏰ ¡Tiempo terminado! La palabra era: ${palabraActualRef.current}`,
-              tipo: 'sistema',
-            },
-          ]);
+          setModalFinTurno(palabraActualRef.current);
           return 0;
         }
         return prev - 1;
@@ -202,6 +199,20 @@ function JuegoContenido() {
       });
     } catch (error) {
       console.error('Error al obtener palabra:', error);
+    }
+  };
+
+  const handleGuardarYSalir = async () => {
+    try {
+      await fetch(`${getBackendUrl()}/api/partidas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigoSala, jugadores }),
+      });
+    } catch (err) {
+      console.error('Error guardando partida:', err);
+    } finally {
+      router.push('/sala');
     }
   };
 
@@ -286,7 +297,7 @@ function JuegoContenido() {
       socket.emit('enviar_mensaje', {
         codigoSala,
         usuario,
-        mensaje: '🎉 ¡ADIVINÓ LA PALABRA!',
+        mensaje: '🎉 ¡ADIVINÓ LA PALABRA! (+100 pts)',
         tipo: 'acierto',
       });
     } else {
@@ -373,34 +384,13 @@ function JuegoContenido() {
             ⏱️ {tiempoRestante}s
           </span>
 
-          <button
-            onClick={handleIniciarTurno}
-            style={{
-              backgroundColor: '#22c55e',
-              color: '#0f172a',
-              fontWeight: 'bold',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
+          <Boton variant="primary" onClick={handleIniciarTurno}>
             🎲 Dibujar yo
-          </button>
+          </Boton>
 
-          <button
-            onClick={() => router.push('/sala')}
-            style={{
-              backgroundColor: '#ef4444',
-              color: '#fff',
-              border: 'none',
-              padding: '0.5rem 0.9rem',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
-            Salir
-          </button>
+          <Boton variant="danger" onClick={handleGuardarYSalir}>
+            Guardar y Salir
+          </Boton>
         </div>
       </header>
 
@@ -439,6 +429,7 @@ function JuegoContenido() {
                   {j.usuario === dibujante ? '✏️ ' : ''}
                   {j.usuario}
                 </span>
+                <strong>{j.puntos || 0} pts</strong>
               </li>
             ))}
           </ul>
@@ -514,23 +505,13 @@ function JuegoContenido() {
               );
             })}
 
-            <button
-              type="button"
+            <Boton
+              variant="danger"
               onClick={handleLimpiarTodo}
               disabled={!esDibujante && turnoActivo}
-              style={{
-                marginLeft: '0.75rem',
-                backgroundColor: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.5rem 0.9rem',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-              }}
             >
               🗑️ Limpiar todo
-            </button>
+            </Boton>
           </div>
         </section>
 
@@ -601,24 +582,24 @@ function JuegoContenido() {
                 color: '#fff',
               }}
             />
-            <button
-              type="submit"
-              disabled={esDibujante && turnoActivo}
-              style={{
-                backgroundColor: '#38bdf8',
-                color: '#0f172a',
-                fontWeight: 'bold',
-                border: 'none',
-                padding: '0.55rem 0.9rem',
-                borderRadius: '8px',
-                cursor: 'pointer',
-              }}
-            >
+            <Boton type="submit" variant="primary" disabled={esDibujante && turnoActivo}>
               Enviar
-            </button>
+            </Boton>
           </form>
         </aside>
       </div>
+
+      {modalFinTurno && (
+        <Modal onClose={() => setModalFinTurno(null)}>
+          <h2 style={{ marginTop: 0, color: '#38bdf8' }}>⏰ ¡Tiempo terminado!</h2>
+          <p style={{ fontSize: '1.1rem' }}>
+            La palabra secreta era: <strong style={{ color: '#22c55e' }}>{modalFinTurno}</strong>
+          </p>
+          <Boton variant="primary" onClick={() => setModalFinTurno(null)}>
+            Continuar
+          </Boton>
+        </Modal>
+      )}
     </main>
   );
 }

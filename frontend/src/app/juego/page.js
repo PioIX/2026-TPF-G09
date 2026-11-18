@@ -215,8 +215,14 @@ function JuegoContenido() {
   const handleIniciarTurno = async () => {
     if (!socket || turnoActivo || misTurnosJugados >= MAX_RONDAS) return;
     try {
+<<<<<<< Updated upstream
       const res = await fetch(
         `${getBackendUrl()}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
+=======
+      const BACKEND_URL = getBackendUrl();
+      const res = await fetch(
+        `${BACKEND_URL}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
+>>>>>>> Stashed changes
       );
       const data = await res.json();
       const palabraElegida = (data?.palabra || 'MATE').toUpperCase();

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import '../sala/sala.css';
+import { BACKEND_URL } from '../config/backend';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -72,7 +73,7 @@ export default function AdminPage() {
     const usuarioActual = localStorage.getItem('usuario') || '';
 
     try {
-      const res = await fetch(`${getBackendUrl()}/api/admin/verificar`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/verificar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

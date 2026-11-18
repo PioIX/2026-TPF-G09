@@ -31,7 +31,15 @@ export default function SalaPage() {
     const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
     setEsAdmin(Boolean(adminLocal));
 
+<<<<<<< Updated upstream
     fetch(`${getBackendUrl()}/api/categorias`)
+=======
+    const BACKEND_URL = getBackendUrl();
+    const socket = io(BACKEND_URL);
+    socketRef.current = socket;
+
+    fetch(`${BACKEND_URL}/api/categorias`)
+>>>>>>> Stashed changes
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setCategoriasLista(data);

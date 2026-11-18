@@ -5,15 +5,19 @@ const cors = require("cors");
 const { realizarQuery } = require("./modulos/mysql");
 
 const app = express();
-app.use(cors());
+app.use(cors()); //no pide ip precisa, acpeta todas
 app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
+<<<<<<< Updated upstream
   cors: {
     origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
   },
+=======
+  cors: { origin: "*", methods: ["GET", "POST"] }, //el * acfepta todos los puertos
+>>>>>>> Stashed changes
 });
 
 const CLAVE_ADMIN = process.env.CLAVE_ADMIN || "Moranditequiero";

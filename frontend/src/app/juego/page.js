@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import useSocket from '@/hooks/useSocket';
+import Modal from '@/components/modal';
+import Boton from '@/components/boton';
 
 const COLORES = [
   '#000000',
@@ -15,6 +17,8 @@ const COLORES = [
   '#92400e',
   '#ffffff',
 ];
+
+const MAX_RONDAS = 3;
 
 function JuegoContenido() {
   const searchParams = useSearchParams();
@@ -31,19 +35,29 @@ function JuegoContenido() {
   const categoriaRef = useRef(categoriaUrl);
   const palabraActualRef = useRef('');
   const yaAdivinoRef = useRef(false);
+  const turnoIdRef = useRef(1);
 
   const [jugadores, setJugadores] = useState([]);
   const [categoriaSala, setCategoriaSala] = useState(categoriaUrl);
   const [dibujante, setDibujante] = useState('');
   const [palabraSecreta, setPalabraSecreta] = useState('');
   const [turnoActivo, setTurnoActivo] = useState(false);
+  const [rondaActual, setRondaActual] = useState(0);
   const [tiempoRestante, setTiempoRestante] = useState(60);
+  const [modalFinPartida, setModalFinPartida] = useState(null);
 
   const [colorActual, setColorActual] = useState('#000000');
   const [mensajes, setMensajes] = useState([]);
   const [textoChat, setTextoChat] = useState('');
 
   const esDibujante = dibujante === usuario;
+  const miJugador = jugadores.find((j) => j.usuario === usuario);
+  const misTurnosJugados = miJugador?.turnosJugados || 0;
+  const puedeDibujarAhora = turnoActivo && esDibujante;
+  const partidaFinalizada =
+    !turnoActivo &&
+    jugadores.length > 0 &&
+    jugadores.every((j) => (j.turnosJugados || 0) >= MAX_RONDAS);
   const esGoma = colorActual.toLowerCase() === '#ffffff';
 
   const getBackendUrl = () =>
@@ -116,9 +130,13 @@ function JuegoContenido() {
     };
 
     const onTurnoIniciado = (datosTurno) => {
+      setModalFinPartida(null);
+      isDrawingRef.current = false;
       setDibujante(datosTurno.dibujante);
       setPalabraSecreta(datosTurno.palabra);
+      setRondaActual(datosTurno.rondaActual || 1);
       palabraActualRef.current = datosTurno.palabra;
+      turnoIdRef.current = datosTurno.turnoId || turnoIdRef.current + 1;
       yaAdivinoRef.current = false;
       setTiempoRestante(60);
       setTurnoActivo(true);
@@ -128,10 +146,18 @@ function JuegoContenido() {
         ...prev,
         {
           usuario: 'Sistema',
-          mensaje: `🎨 ¡Comenzó el turno! Dibuja: ${datosTurno.dibujante}`,
+          mensaje: `🎨 Ronda ${datosTurno.rondaActual || 1}/${datosTurno.maxRondas || MAX_RONDAS} — Dibuja: ${datosTurno.dibujante}`,
           tipo: 'sistema',
         },
       ]);
+    };
+
+    const onPartidaTerminada = ({ ultimaPalabra }) => {
+      isDrawingRef.current = false;
+      setTurnoActivo(false);
+      setDibujante('');
+      limpiarCanvasLocal();
+      setModalFinPartida(ultimaPalabra || palabraActualRef.current);
     };
 
     const onMensajeRecibido = (msg) => {
@@ -144,6 +170,7 @@ function JuegoContenido() {
     socket.on('dibujar', onDibujar);
     socket.on('limpiar_lienzo', onLimpiarLienzo);
     socket.on('turno_iniciado', onTurnoIniciado);
+    socket.on('partida_terminada', onPartidaTerminada);
     socket.on('mensaje_recibido', onMensajeRecibido);
 
     return () => {
@@ -153,6 +180,7 @@ function JuegoContenido() {
       socket.off('dibujar', onDibujar);
       socket.off('limpiar_lienzo', onLimpiarLienzo);
       socket.off('turno_iniciado', onTurnoIniciado);
+      socket.off('partida_terminada', onPartidaTerminada);
       socket.off('mensaje_recibido', onMensajeRecibido);
     };
   }, [socket, codigoSala, usuario, router]);
@@ -164,15 +192,17 @@ function JuegoContenido() {
       setTiempoRestante((prev) => {
         if (prev <= 1) {
           clearInterval(intervalo);
+          isDrawingRef.current = false;
           setTurnoActivo(false);
-          setMensajes((m) => [
-            ...m,
-            {
-              usuario: 'Sistema',
-              mensaje: `⏰ ¡Tiempo terminado! La palabra era: ${palabraActualRef.current}`,
-              tipo: 'sistema',
-            },
-          ]);
+          limpiarCanvasLocal();
+
+          if (esDibujante && socket) {
+            socket.emit('tiempo_agotado', {
+              codigoSala,
+              turnoActual: turnoIdRef.current,
+              palabraAnterior: palabraActualRef.current,
+            });
+          }
           return 0;
         }
         return prev - 1;
@@ -180,10 +210,10 @@ function JuegoContenido() {
     }, 1000);
 
     return () => clearInterval(intervalo);
-  }, [turnoActivo]);
+  }, [turnoActivo, esDibujante, socket, codigoSala]);
 
   const handleIniciarTurno = async () => {
-    if (!socket) return;
+    if (!socket || turnoActivo || misTurnosJugados >= MAX_RONDAS) return;
     try {
       const res = await fetch(
         `${getBackendUrl()}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
@@ -198,10 +228,25 @@ function JuegoContenido() {
           dibujante: usuario,
           palabra: palabraElegida,
           categoria: categoriaRef.current,
+          turnoId: 1,
         },
       });
     } catch (error) {
       console.error('Error al obtener palabra:', error);
+    }
+  };
+
+  const handleGuardarYSalir = async () => {
+    try {
+      await fetch(`${getBackendUrl()}/api/partidas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigoSala, jugadores }),
+      });
+    } catch (err) {
+      console.error('Error guardando partida:', err);
+    } finally {
+      router.push('/sala');
     }
   };
 
@@ -218,14 +263,13 @@ function JuegoContenido() {
   };
 
   const empezarDibujo = (e) => {
-    if (!esDibujante && turnoActivo) return;
+    if (!puedeDibujarAhora) return;
     isDrawingRef.current = true;
     lastPosRef.current = obtenerCoordenadas(e);
   };
 
   const moverDibujo = (e) => {
-    if (!isDrawingRef.current) return;
-    if (!esDibujante && turnoActivo) return;
+    if (!isDrawingRef.current || !puedeDibujarAhora) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -264,6 +308,7 @@ function JuegoContenido() {
   };
 
   const handleLimpiarTodo = () => {
+    if (!puedeDibujarAhora) return;
     limpiarCanvasLocal();
     socket?.emit('limpiar_lienzo', codigoSala);
   };
@@ -286,7 +331,7 @@ function JuegoContenido() {
       socket.emit('enviar_mensaje', {
         codigoSala,
         usuario,
-        mensaje: '🎉 ¡ADIVINÓ LA PALABRA!',
+        mensaje: '🎉 ¡ADIVINÓ LA PALABRA! (+100 pts)',
         tipo: 'acierto',
       });
     } else {
@@ -331,16 +376,26 @@ function JuegoContenido() {
           gap: '1rem',
         }}
       >
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <img
+            src="/logo.png"
+            alt="Argentillo"
+            style={{ height: '42px', width: 'auto', objectFit: 'contain' }}
+          />
           <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#38bdf8' }}>
-            ARGENTILLO 🎨
+            ARGENTILLO
           </span>
-          <span style={{ marginLeft: '1rem', color: '#94a3b8' }}>
+          <span style={{ marginLeft: '0.6rem', color: '#94a3b8' }}>
             Sala: <strong style={{ color: '#fff' }}>{codigoSala}</strong>
           </span>
-          <span style={{ marginLeft: '1rem', color: '#94a3b8' }}>
+          <span style={{ marginLeft: '0.6rem', color: '#94a3b8' }}>
             Cat ID: <strong style={{ color: '#c084fc' }}>{categoriaSala}</strong>
           </span>
+          {turnoActivo && (
+            <span style={{ marginLeft: '0.6rem', color: '#94a3b8' }}>
+              Ronda: <strong style={{ color: '#38bdf8' }}>{rondaActual}/{MAX_RONDAS}</strong>
+            </span>
+          )}
         </div>
 
         <div
@@ -358,6 +413,8 @@ function JuegoContenido() {
             ? esDibujante
               ? `DIBUJÁ: ${palabraSecreta}`
               : palabraEnmascarada
+            : partidaFinalizada
+            ? '🏁 PARTIDA FINALIZADA'
             : 'LISTO PARA JUGAR'}
         </div>
 
@@ -373,34 +430,21 @@ function JuegoContenido() {
             ⏱️ {tiempoRestante}s
           </span>
 
-          <button
+          <Boton
+            variant="primary"
             onClick={handleIniciarTurno}
-            style={{
-              backgroundColor: '#22c55e',
-              color: '#0f172a',
-              fontWeight: 'bold',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
+            disabled={turnoActivo || misTurnosJugados >= MAX_RONDAS}
           >
-            🎲 Dibujar yo
-          </button>
+            {misTurnosJugados >= MAX_RONDAS
+              ? '✅ Rondas completas'
+              : turnoActivo
+              ? '🎨 En juego'
+              : '🎲 Empezar partida'}
+          </Boton>
 
-          <button
-            onClick={() => router.push('/sala')}
-            style={{
-              backgroundColor: '#ef4444',
-              color: '#fff',
-              border: 'none',
-              padding: '0.5rem 0.9rem',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
-            Salir
-          </button>
+          <Boton variant="danger" onClick={handleGuardarYSalir}>
+            Guardar y Salir
+          </Boton>
         </div>
       </header>
 
@@ -423,24 +467,32 @@ function JuegoContenido() {
             Jugadores ({jugadores.length})
           </h3>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {jugadores.map((j, idx) => (
-              <li
-                key={j.id || idx}
-                style={{
-                  padding: '0.5rem',
-                  marginBottom: '0.4rem',
-                  borderRadius: '8px',
-                  backgroundColor: j.usuario === dibujante ? '#3b82f6' : '#0f172a',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <span>
-                  {j.usuario === dibujante ? '✏️ ' : ''}
-                  {j.usuario}
-                </span>
-              </li>
-            ))}
+            {jugadores.map((j, idx) => {
+              const rondasJugadas = j.turnosJugados || 0;
+              return (
+                <li
+                  key={j.id || idx}
+                  style={{
+                    padding: '0.5rem',
+                    marginBottom: '0.4rem',
+                    borderRadius: '8px',
+                    backgroundColor: j.usuario === dibujante ? '#3b82f6' : '#0f172a',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span>
+                    {j.usuario === dibujante ? '✏️ ' : rondasJugadas >= MAX_RONDAS ? '✅ ' : ''}
+                    {j.usuario}{' '}
+                    <small style={{ color: '#94a3b8' }}>
+                      ({rondasJugadas}/{MAX_RONDAS})
+                    </small>
+                  </span>
+                  <strong>{j.puntos || 0} pts</strong>
+                </li>
+              );
+            })}
           </ul>
         </aside>
 
@@ -469,7 +521,7 @@ function JuegoContenido() {
               backgroundColor: '#ffffff',
               borderRadius: '12px',
               border: '3px solid #334155',
-              cursor: !esDibujante && turnoActivo ? 'not-allowed' : esGoma ? 'cell' : 'crosshair',
+              cursor: !puedeDibujarAhora ? 'not-allowed' : esGoma ? 'cell' : 'crosshair',
               touchAction: 'none',
             }}
           />
@@ -493,6 +545,7 @@ function JuegoContenido() {
                 <button
                   key={c}
                   type="button"
+                  disabled={!puedeDibujarAhora}
                   title={esBotonGoma ? 'Goma de borrar' : c}
                   onClick={() => setColorActual(c)}
                   style={{
@@ -506,7 +559,8 @@ function JuegoContenido() {
                     fontSize: '18px',
                     border: seleccionado ? '3px solid #a855f7' : '2px solid #94a3b8',
                     transform: seleccionado ? 'scale(1.12)' : 'scale(1)',
-                    cursor: 'pointer',
+                    cursor: puedeDibujarAhora ? 'pointer' : 'not-allowed',
+                    opacity: puedeDibujarAhora ? 1 : 0.5,
                   }}
                 >
                   {esBotonGoma ? '🧽' : ''}
@@ -514,23 +568,13 @@ function JuegoContenido() {
               );
             })}
 
-            <button
-              type="button"
+            <Boton
+              variant="danger"
               onClick={handleLimpiarTodo}
-              disabled={!esDibujante && turnoActivo}
-              style={{
-                marginLeft: '0.75rem',
-                backgroundColor: '#ef4444',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.5rem 0.9rem',
-                borderRadius: '8px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-              }}
+              disabled={!puedeDibujarAhora}
             >
               🗑️ Limpiar todo
-            </button>
+            </Boton>
           </div>
         </section>
 
@@ -601,24 +645,27 @@ function JuegoContenido() {
                 color: '#fff',
               }}
             />
-            <button
-              type="submit"
-              disabled={esDibujante && turnoActivo}
-              style={{
-                backgroundColor: '#38bdf8',
-                color: '#0f172a',
-                fontWeight: 'bold',
-                border: 'none',
-                padding: '0.55rem 0.9rem',
-                borderRadius: '8px',
-                cursor: 'pointer',
-              }}
-            >
+            <Boton type="submit" variant="primary" disabled={esDibujante && turnoActivo}>
               Enviar
-            </button>
+            </Boton>
           </form>
         </aside>
       </div>
+
+      {modalFinPartida && (
+        <Modal onClose={() => setModalFinPartida(null)}>
+          <h2 style={{ marginTop: 0, color: '#38bdf8' }}>🏁 ¡Partida terminada!</h2>
+          <p style={{ fontSize: '1.1rem' }}>
+            La última palabra era: <strong style={{ color: '#22c55e' }}>{modalFinPartida}</strong>
+          </p>
+          <p style={{ color: '#94a3b8' }}>
+            Todos los jugadores completaron sus {MAX_RONDAS} rondas de dibujo.
+          </p>
+          <Boton variant="primary" onClick={handleGuardarYSalir}>
+            🏆 Guardar puntajes y salir
+          </Boton>
+        </Modal>
+      )}
     </main>
   );
 }

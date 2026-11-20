@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import './login.css';
+import { BACKEND_URL } from '../config/backend';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,12 +17,9 @@ export default function LoginPage() {
     setError('');
     setCargando(true);
 
-    const BACKEND_URL =
-      typeof window !== 'undefined'
-        ? `http://${window.location.hostname}:4000`
-        : 'http://localhost:4000';
 
     try {
+
       const res = await fetch(`${BACKEND_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

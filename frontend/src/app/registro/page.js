@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import './registro.css';
+import { BACKEND_URL } from '../config/backend';
 
 export default function RegistroPage() {
   const router = useRouter();
@@ -16,13 +17,11 @@ export default function RegistroPage() {
     setError('');
     setCargando(true);
 
-    const backendUrl =
-      typeof window !== 'undefined'
-        ? `http://${window.location.hostname}:4000`
-        : 'http://localhost:4000';
+
 
     try {
-      const res = await fetch(`${backendUrl}/api/registro`, {
+      const url =BACKEND_URL
+      const res = await fetch(`${url}/api/registro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

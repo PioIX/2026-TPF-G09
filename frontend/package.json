@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "next dev -H 0.0.0.0 --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "dev:a": "cross-env NEXT_DIST_DIR=.next-a PORT=3000 next dev",
-    "dev:b": "cross-env NEXT_DIST_DIR=.next-b PORT=3001 next dev"
+    "dev:a": "cross-env NEXT_DIST_DIR=.next-a PORT=3000 next dev --webpack",
+    "dev:b": "cross-env NEXT_DIST_DIR=.next-b PORT=3001 next dev --webpack"
   },
   "dependencies": {
     "next": "16.2.12",

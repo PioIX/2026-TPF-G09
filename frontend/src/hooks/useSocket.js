@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
-
+import { BACKEND_URL } from "@/app/config/backend";
 // Apuntá a localhost mientras probás en tu PC
-const SOCKET_SERVER_URL = "http://localhost:4000";
+const SOCKET_SERVER_URL = BACKEND_URL
 
 export default function useSocket({ serverUrl = SOCKET_SERVER_URL, options = {} } = {}) {
   const [isConnected, setIsConnected] = useState(false);

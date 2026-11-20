@@ -16,13 +16,13 @@ export default function LoginPage() {
     setError('');
     setCargando(true);
 
-    const backendUrl =
+    const BACKEND_URL =
       typeof window !== 'undefined'
         ? `http://${window.location.hostname}:4000`
         : 'http://localhost:4000';
 
     try {
-      const res = await fetch(`${backendUrl}/api/login`, {
+      const res = await fetch(`${BACKEND_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

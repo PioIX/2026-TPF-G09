@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import useSocket from '@/hooks/useSocket';
 import Modal from '@/components/modal';
 import Boton from '@/components/boton';
+import { BACKEND_URL } from '../config/backend';
 
 const COLORES = [
   '#000000',
@@ -23,7 +24,7 @@ const MAX_RONDAS = 3;
 function JuegoContenido() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { socket } = useSocket();
+  const { socket } = useSocket(BACKEND_URL);
 
   const codigoSala = (searchParams.get('codigo') || '').toUpperCase();
   const usuario = searchParams.get('usuario') || 'Jugador';
@@ -60,10 +61,7 @@ function JuegoContenido() {
     jugadores.every((j) => (j.turnosJugados || 0) >= MAX_RONDAS);
   const esGoma = colorActual.toLowerCase() === '#ffffff';
 
-  const getBackendUrl = () =>
-    typeof window !== 'undefined'
-      ? `http://${window.location.hostname}:4000`
-      : 'http://localhost:4000';
+  const getBackendUrl = BACKEND_URL
 
   const trazarLinea = (ctx, x0, y0, x1, y1, color, grosor) => {
     ctx.beginPath();
@@ -216,7 +214,7 @@ function JuegoContenido() {
     if (!socket || turnoActivo || misTurnosJugados >= MAX_RONDAS) return;
     try {
       const res = await fetch(
-        `${getBackendUrl()}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
+        `${BACKEND_URL}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
       );
       const data = await res.json();
       const palabraElegida = (data?.palabra || 'MATE').toUpperCase();
@@ -238,7 +236,7 @@ function JuegoContenido() {
 
   const handleGuardarYSalir = async () => {
     try {
-      await fetch(`${getBackendUrl()}/api/partidas`, {
+      await fetch(`${BACKEND_URL}/api/partidas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ codigoSala, jugadores }),

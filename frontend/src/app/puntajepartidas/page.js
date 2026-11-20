@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Boton from '@/components/boton';
+import { BACKEND_URL } from '../config/backend';
 
 function PuntajePartidasContenido() {
   const router = useRouter();
@@ -14,10 +15,7 @@ function PuntajePartidasContenido() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
-  const getBackendUrl = () =>
-    typeof window !== 'undefined'
-      ? `http://${window.location.hostname}:4000`
-      : 'http://localhost:4000';
+  const getBackendUrl = BACKEND_URL
 
   const cargarDatos = async () => {
     setCargando(true);

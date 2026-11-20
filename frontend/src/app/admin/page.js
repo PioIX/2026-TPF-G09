@@ -22,11 +22,8 @@ export default function AdminPage() {
   const [editCat, setEditCat] = useState('');
   const [mensaje, setMensaje] = useState('');
 
-  const getBackendUrl = () =>
-    typeof window !== 'undefined'
-      ? `http://${window.location.hostname}:4000`
-      : 'http://localhost:4000';
-
+  const getBackendUrl = BACKEND_URL
+  
   const cargarPalabras = (key) => {
     fetch(`${getBackendUrl()}/api/admin/palabras`, {
       headers: { 'x-admin-key': key },

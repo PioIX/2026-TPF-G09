@@ -21,37 +21,42 @@ export default function AdminPage() {
   const [editCat, setEditCat] = useState('');
   const [mensaje, setMensaje] = useState('');
 
-  const getBackendUrl = () =>
-    typeof window !== 'undefined'
-      ? `http://${window.location.hostname}:4000`
-      : 'http://localhost:4000';
+  function getBackendUrl() {
+    if (typeof window !== 'undefined') {
+      return 'http://' + window.location.hostname + ':4000';
+    }
+    return 'http://localhost:4000';
+  }
 
-  const cargarPalabras = (key) => {
-    fetch(`${getBackendUrl()}/api/admin/palabras`, {
+  function cargarPalabras(key) {
+    fetch(getBackendUrl() + '/api/admin/palabras', {
       headers: { 'x-admin-key': key },
     })
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) setPalabras(data);
+        if (Array.isArray(data)) {
+          setPalabras(data);
+        }
       })
       .catch((err) => console.error('Error cargando palabras:', err));
-  };
+  }
 
   useEffect(() => {
-    const esAdminRaw = localStorage.getItem('esAdmin');
-    const esAdmin = esAdminRaw ? JSON.parse(esAdminRaw) : false;
+    const esAdmin = localStorage.getItem('esAdmin');
 
-    if (!esAdmin || esAdmin === 0 || esAdmin === '0') {
+    if (esAdmin !== '1' && esAdmin !== 'true') {
       router.push('/sala');
       return;
     }
 
-    fetch(`${getBackendUrl()}/api/categorias`)
+    fetch(getBackendUrl() + '/api/categorias')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
           setCategorias(data);
-          if (data.length > 0) setCategoriaSeleccionada(data[0].id_categoria);
+          if (data.length > 0) {
+            setCategoriaSeleccionada(data[0].id_categoria);
+          }
         }
       })
       .catch((err) => console.error('Error cargando categorías:', err));
@@ -64,7 +69,7 @@ export default function AdminPage() {
     }
   }, [router]);
 
-  const handleVerificar = async (e) => {
+  async function handleVerificar(e) {
     e.preventDefault();
     setMensaje('');
     setVerificando(true);
@@ -72,7 +77,7 @@ export default function AdminPage() {
     const usuarioActual = localStorage.getItem('usuario') || '';
 
     try {
-      const res = await fetch(`${getBackendUrl()}/api/admin/verificar`, {
+      const res = await fetch(getBackendUrl() + '/api/admin/verificar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -82,7 +87,11 @@ export default function AdminPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.mensaje || 'Clave incorrecta');
+      if (!res.ok) {
+        setMensaje('⚠️ ' + (data.mensaje || 'Clave incorrecta'));
+        setVerificando(false);
+        return;
+      }
 
       const key = claveInput.trim();
       sessionStorage.setItem('adminKey', key);
@@ -91,18 +100,18 @@ export default function AdminPage() {
       setMensaje('');
       cargarPalabras(key);
     } catch (err) {
-      setMensaje(`⚠️ ${err.message}`);
-    } finally {
-      setVerificando(false);
+      setMensaje('⚠️ Error de conexión con el servidor');
     }
-  };
 
-  const handleAgregarPalabra = async (e) => {
+    setVerificando(false);
+  }
+
+  async function handleAgregarPalabra(e) {
     e.preventDefault();
     setMensaje('');
 
     try {
-      const res = await fetch(`${getBackendUrl()}/api/admin/palabras`, {
+      const res = await fetch(getBackendUrl() + '/api/admin/palabras', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,25 +124,28 @@ export default function AdminPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.mensaje);
+      if (!res.ok) {
+        setMensaje('⚠️ ' + data.mensaje);
+        return;
+      }
 
       setMensaje('✅ Palabra agregada correctamente');
       setNuevaPalabra('');
       cargarPalabras(claveActiva);
     } catch (err) {
-      setMensaje(`⚠️ ${err.message}`);
+      setMensaje('⚠️ Error al guardar la palabra');
     }
-  };
+  }
 
-  const iniciarEdicion = (p) => {
+  function iniciarEdicion(p) {
     setEditandoId(p.id_palabra);
     setEditTexto(p.palabra);
     setEditCat(p.id_categoria);
-  };
+  }
 
-  const handleGuardarEdicion = async (id) => {
+  async function handleGuardarEdicion(id) {
     try {
-      const res = await fetch(`${getBackendUrl()}/api/admin/palabras/${id}`, {
+      const res = await fetch(getBackendUrl() + '/api/admin/palabras/' + id, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -146,32 +158,38 @@ export default function AdminPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.mensaje);
+      if (!res.ok) {
+        setMensaje('⚠️ ' + data.mensaje);
+        return;
+      }
 
       setEditandoId(null);
       setMensaje('✅ Palabra actualizada');
       cargarPalabras(claveActiva);
     } catch (err) {
-      setMensaje(`⚠️ ${err.message}`);
+      setMensaje('⚠️ Error al actualizar');
     }
-  };
+  }
 
-  const handleEliminarPalabra = async (id) => {
+  async function handleEliminarPalabra(id) {
     try {
-      const res = await fetch(`${getBackendUrl()}/api/admin/palabras/${id}`, {
+      const res = await fetch(getBackendUrl() + '/api/admin/palabras/' + id, {
         method: 'DELETE',
         headers: { 'x-admin-key': claveActiva },
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.mensaje);
+      if (!res.ok) {
+        setMensaje('⚠️ ' + data.mensaje);
+        return;
+      }
 
       setMensaje('🗑️ Palabra eliminada');
       cargarPalabras(claveActiva);
     } catch (err) {
-      setMensaje(`⚠️ ${err.message}`);
+      setMensaje('⚠️ Error al eliminar');
     }
-  };
+  }
 
   if (!verificado) {
     return (
@@ -223,9 +241,18 @@ export default function AdminPage() {
             <h1 className="sala-title">Panel Admin ⚙️</h1>
             <p className="sala-subtitle">Gestión de palabras de Argentillo</p>
           </div>
-          <Link href="/sala" className="sala-logout-btn" style={{ textDecoration: 'none' }}>
-            Volver a la Sala
-          </Link>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Link
+              href="/puntajepartidas"
+              className="sala-logout-btn"
+              style={{ textDecoration: 'none', backgroundColor: '#2563eb', color: '#fff' }}
+            >
+              Puntaje Partidas 🏆
+            </Link>
+            <Link href="/sala" className="sala-logout-btn" style={{ textDecoration: 'none' }}>
+              Volver a la Sala
+            </Link>
+          </div>
         </div>
 
         {mensaje && (

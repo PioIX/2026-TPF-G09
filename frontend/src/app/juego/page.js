@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import useSocket from '@/hooks/useSocket';
 import Modal from '@/components/modal';
 import Boton from '@/components/boton';
@@ -18,24 +18,22 @@ const COLORES = [
   '#ffffff',
 ];
 
-function JuegoContenido() {
-  const searchParams = useSearchParams();
+// Variables simples para controlar el lápiz sin re-renderizar React
+let estaDibujando = false;
+let ultimaPos = { x: 0, y: 0 };
+let palabraEnCurso = '';
+let yaAdivinoTurno = false;
+
+export default function JuegoPage() {
   const router = useRouter();
   const { socket } = useSocket();
-
-  const codigoSala = (searchParams.get('codigo') || '').toUpperCase();
-  const usuario = searchParams.get('usuario') || 'Jugador';
-  const categoriaUrl = searchParams.get('categoria') || 'TODAS';
-
   const canvasRef = useRef(null);
-  const isDrawingRef = useRef(false);
-  const lastPosRef = useRef({ x: 0, y: 0 });
-  const categoriaRef = useRef(categoriaUrl);
-  const palabraActualRef = useRef('');
-  const yaAdivinoRef = useRef(false);
+
+  const [codigoSala, setCodigoSala] = useState('');
+  const [usuario, setUsuario] = useState('Jugador');
+  const [categoriaSala, setCategoriaSala] = useState('TODAS');
 
   const [jugadores, setJugadores] = useState([]);
-  const [categoriaSala, setCategoriaSala] = useState(categoriaUrl);
   const [dibujante, setDibujante] = useState('');
   const [palabraSecreta, setPalabraSecreta] = useState('');
   const [turnoActivo, setTurnoActivo] = useState(false);
@@ -47,14 +45,16 @@ function JuegoContenido() {
   const [textoChat, setTextoChat] = useState('');
 
   const esDibujante = dibujante === usuario;
-  const esGoma = colorActual.toLowerCase() === '#ffffff';
+  const esGoma = colorActual === '#ffffff';
 
-  const getBackendUrl = () =>
-    typeof window !== 'undefined'
-      ? `http://${window.location.hostname}:4000`
-      : 'http://localhost:4000';
+  function getBackendUrl() {
+    if (typeof window !== 'undefined') {
+      return 'http://' + window.location.hostname + ':4000';
+    }
+    return 'http://localhost:4000';
+  }
 
-  const trazarLinea = (ctx, x0, y0, x1, y1, color, grosor) => {
+  function trazarLinea(ctx, x0, y0, x1, y1, color, grosor) {
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
@@ -64,66 +64,76 @@ function JuegoContenido() {
     ctx.lineJoin = 'round';
     ctx.stroke();
     ctx.closePath();
-  };
+  }
 
-  const limpiarCanvasLocal = () => {
+  function limpiarCanvasLocal() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-  };
+  }
 
+  // 1. Leer parámetros de la URL y conectar a la sala por Socket.IO
   useEffect(() => {
     limpiarCanvasLocal();
 
-    if (!codigoSala) {
+    const params = new URLSearchParams(window.location.search);
+    const cod = (params.get('codigo') || '').toUpperCase();
+    const user = params.get('usuario') || 'Jugador';
+    const cat = params.get('categoria') || 'TODAS';
+
+    if (!cod) {
       router.push('/sala');
       return;
     }
 
+    setCodigoSala(cod);
+    setUsuario(user);
+    setCategoriaSala(cat);
+
     if (!socket) return;
 
-    socket.emit('unirse_sala', { codigoSala, usuario });
+    socket.emit('unirse_sala', { codigoSala: cod, usuario: user });
 
-    const onUnidoExitoso = (data) => {
-      if (data?.categoria && data.categoria !== 'TODAS') {
-        categoriaRef.current = String(data.categoria);
+    socket.on('unido_exitoso', (data) => {
+      if (data.categoria && data.categoria !== 'TODAS') {
         setCategoriaSala(String(data.categoria));
       }
-      if (data?.sala?.jugadores) {
+      if (data.sala && data.sala.jugadores) {
         setJugadores(data.sala.jugadores);
       }
-    };
+    });
 
-    const onActualizarJugadores = (lista) => {
+    socket.on('actualizar_jugadores', (lista) => {
       setJugadores(lista);
-    };
+    });
 
-    const onJugadorUnido = ({ usuario: nuevoUsuario }) => {
+    socket.on('jugador_unido', (data) => {
       setMensajes((prev) => [
         ...prev,
-        { usuario: 'Sistema', mensaje: `${nuevoUsuario} se unió a la sala`, tipo: 'sistema' },
+        { usuario: 'Sistema', mensaje: data.usuario + ' se unió a la sala', tipo: 'sistema' },
       ]);
-    };
+    });
 
-    const onDibujar = (datos) => {
-      const ctx = canvasRef.current?.getContext('2d');
-      if (!ctx) return;
+    socket.on('dibujar', (datos) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
       const grosorRemoto = datos.grosor || (datos.color === '#ffffff' ? 28 : 4);
       trazarLinea(ctx, datos.x0, datos.y0, datos.x1, datos.y1, datos.color, grosorRemoto);
-    };
+    });
 
-    const onLimpiarLienzo = () => {
+    socket.on('limpiar_lienzo', () => {
       limpiarCanvasLocal();
-    };
+    });
 
-    const onTurnoIniciado = (datosTurno) => {
+    socket.on('turno_iniciado', (datosTurno) => {
       setModalFinTurno(null);
       setDibujante(datosTurno.dibujante);
       setPalabraSecreta(datosTurno.palabra);
-      palabraActualRef.current = datosTurno.palabra;
-      yaAdivinoRef.current = false;
+      palabraEnCurso = datosTurno.palabra;
+      yaAdivinoTurno = false;
       setTiempoRestante(60);
       setTurnoActivo(true);
       limpiarCanvasLocal();
@@ -132,35 +142,28 @@ function JuegoContenido() {
         ...prev,
         {
           usuario: 'Sistema',
-          mensaje: `🎨 ¡Comenzó el turno! Dibuja: ${datosTurno.dibujante}`,
+          mensaje: '🎨 ¡Comenzó el turno! Dibuja: ' + datosTurno.dibujante,
           tipo: 'sistema',
         },
       ]);
-    };
+    });
 
-    const onMensajeRecibido = (msg) => {
+    socket.on('mensaje_recibido', (msg) => {
       setMensajes((prev) => [...prev, msg]);
-    };
-
-    socket.on('unido_exitoso', onUnidoExitoso);
-    socket.on('actualizar_jugadores', onActualizarJugadores);
-    socket.on('jugador_unido', onJugadorUnido);
-    socket.on('dibujar', onDibujar);
-    socket.on('limpiar_lienzo', onLimpiarLienzo);
-    socket.on('turno_iniciado', onTurnoIniciado);
-    socket.on('mensaje_recibido', onMensajeRecibido);
+    });
 
     return () => {
-      socket.off('unido_exitoso', onUnidoExitoso);
-      socket.off('actualizar_jugadores', onActualizarJugadores);
-      socket.off('jugador_unido', onJugadorUnido);
-      socket.off('dibujar', onDibujar);
-      socket.off('limpiar_lienzo', onLimpiarLienzo);
-      socket.off('turno_iniciado', onTurnoIniciado);
-      socket.off('mensaje_recibido', onMensajeRecibido);
+      socket.off('unido_exitoso');
+      socket.off('actualizar_jugadores');
+      socket.off('jugador_unido');
+      socket.off('dibujar');
+      socket.off('limpiar_lienzo');
+      socket.off('turno_iniciado');
+      socket.off('mensaje_recibido');
     };
-  }, [socket, codigoSala, usuario, router]);
+  }, [socket, router]);
 
+  // 2. Reloj de 60 segundos del turno
   useEffect(() => {
     if (!turnoActivo) return;
 
@@ -169,7 +172,7 @@ function JuegoContenido() {
         if (prev <= 1) {
           clearInterval(intervalo);
           setTurnoActivo(false);
-          setModalFinTurno(palabraActualRef.current);
+          setModalFinTurno(palabraEnCurso);
           return 0;
         }
         return prev - 1;
@@ -179,44 +182,43 @@ function JuegoContenido() {
     return () => clearInterval(intervalo);
   }, [turnoActivo]);
 
-  const handleIniciarTurno = async () => {
+  async function handleIniciarTurno() {
     if (!socket) return;
     try {
       const res = await fetch(
-        `${getBackendUrl()}/api/palabra?id_categoria=${encodeURIComponent(categoriaRef.current)}`
+        getBackendUrl() + '/api/palabra?id_categoria=' + encodeURIComponent(categoriaSala)
       );
       const data = await res.json();
-      const palabraElegida = (data?.palabra || 'MATE').toUpperCase();
+      const palabraElegida = (data.palabra || 'MATE').toUpperCase();
 
       socket.emit('limpiar_lienzo', codigoSala);
       socket.emit('nuevo_turno', {
-        codigoSala,
+        codigoSala: codigoSala,
         datosTurno: {
           dibujante: usuario,
           palabra: palabraElegida,
-          categoria: categoriaRef.current,
+          categoria: categoriaSala,
         },
       });
     } catch (error) {
       console.error('Error al obtener palabra:', error);
     }
-  };
+  }
 
-  const handleGuardarYSalir = async () => {
+  async function handleGuardarYSalir() {
     try {
-      await fetch(`${getBackendUrl()}/api/partidas`, {
+      await fetch(getBackendUrl() + '/api/partidas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigoSala, jugadores }),
+        body: JSON.stringify({ codigoSala: codigoSala, jugadores: jugadores }),
       });
     } catch (err) {
       console.error('Error guardando partida:', err);
-    } finally {
-      router.push('/sala');
     }
-  };
+    router.push('/sala');
+  }
 
-  const obtenerCoordenadas = (e) => {
+  function obtenerCoordenadas(e) {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -226,98 +228,103 @@ function JuegoContenido() {
       x: ((clientX - rect.left) / rect.width) * canvas.width,
       y: ((clientY - rect.top) / rect.height) * canvas.height,
     };
-  };
+  }
 
-  const empezarDibujo = (e) => {
+  function empezarDibujo(e) {
     if (!esDibujante && turnoActivo) return;
-    isDrawingRef.current = true;
-    lastPosRef.current = obtenerCoordenadas(e);
-  };
+    estaDibujando = true;
+    ultimaPos = obtenerCoordenadas(e);
+  }
 
-  const moverDibujo = (e) => {
-    if (!isDrawingRef.current) return;
+  function moverDibujo(e) {
+    if (!estaDibujando) return;
     if (!esDibujante && turnoActivo) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!ctx) return;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
     const posActual = obtenerCoordenadas(e);
     const grosor = esGoma ? 28 : 4;
 
-    trazarLinea(
-      ctx,
-      lastPosRef.current.x,
-      lastPosRef.current.y,
-      posActual.x,
-      posActual.y,
-      colorActual,
-      grosor
-    );
+    trazarLinea(ctx, ultimaPos.x, ultimaPos.y, posActual.x, posActual.y, colorActual, grosor);
 
-    socket?.emit('dibujar', {
-      codigoSala,
-      datosTrazo: {
-        x0: lastPosRef.current.x,
-        y0: lastPosRef.current.y,
-        x1: posActual.x,
-        y1: posActual.y,
-        color: colorActual,
-        grosor,
-      },
-    });
+    if (socket) {
+      socket.emit('dibujar', {
+        codigoSala: codigoSala,
+        datosTrazo: {
+          x0: ultimaPos.x,
+          y0: ultimaPos.y,
+          x1: posActual.x,
+          y1: posActual.y,
+          color: colorActual,
+          grosor: grosor,
+        },
+      });
+    }
 
-    lastPosRef.current = posActual;
-  };
+    ultimaPos = posActual;
+  }
 
-  const terminarDibujo = () => {
-    isDrawingRef.current = false;
-  };
+  function terminarDibujo() {
+    estaDibujando = false;
+  }
 
-  const handleLimpiarTodo = () => {
+  function handleLimpiarTodo() {
     limpiarCanvasLocal();
-    socket?.emit('limpiar_lienzo', codigoSala);
-  };
+    if (socket) {
+      socket.emit('limpiar_lienzo', codigoSala);
+    }
+  }
 
-  const handleEnviarMensaje = (e) => {
+  function handleEnviarMensaje(e) {
     e.preventDefault();
     const texto = textoChat.trim();
     if (!texto || !socket) return;
 
-    const palabraObjetivo = palabraActualRef.current.trim().toUpperCase();
+    const palabraObjetivo = palabraEnCurso.trim().toUpperCase();
 
     if (
       turnoActivo &&
       !esDibujante &&
-      !yaAdivinoRef.current &&
-      palabraObjetivo &&
+      !yaAdivinoTurno &&
+      palabraObjetivo !== '' &&
       texto.toUpperCase() === palabraObjetivo
     ) {
-      yaAdivinoRef.current = true;
+      yaAdivinoTurno = true;
       socket.emit('enviar_mensaje', {
-        codigoSala,
-        usuario,
+        codigoSala: codigoSala,
+        usuario: usuario,
         mensaje: '🎉 ¡ADIVINÓ LA PALABRA! (+100 pts)',
         tipo: 'acierto',
       });
     } else {
       socket.emit('enviar_mensaje', {
-        codigoSala,
-        usuario,
+        codigoSala: codigoSala,
+        usuario: usuario,
         mensaje: texto,
         tipo: 'normal',
       });
     }
 
     setTextoChat('');
-  };
+  }
 
-  const palabraEnmascarada = palabraSecreta
-    ? palabraSecreta
-        .split('')
-        .map((letra) => (letra === ' ' ? '   ' : '_'))
-        .join(' ')
-    : 'ESPERANDO TURNO...';
+  // Arma los guiones "_ _ _" para los que tienen que adivinar
+  function obtenerTextoCabecera() {
+    if (!turnoActivo) return 'LISTO PARA JUGAR';
+    if (esDibujante) return 'DIBUJÁ: ' + palabraSecreta;
+
+    let guiones = '';
+    for (let i = 0; i < palabraSecreta.length; i++) {
+      if (palabraSecreta[i] === ' ') {
+        guiones = guiones + '   ';
+      } else {
+        guiones = guiones + '_ ';
+      }
+    }
+    return guiones;
+  }
 
   return (
     <main
@@ -365,11 +372,7 @@ function JuegoContenido() {
             border: '1px solid #334155',
           }}
         >
-          {turnoActivo
-            ? esDibujante
-              ? `DIBUJÁ: ${palabraSecreta}`
-              : palabraEnmascarada
-            : 'LISTO PARA JUGAR'}
+          {obtenerTextoCabecera()}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -477,8 +480,8 @@ function JuegoContenido() {
             }}
           >
             {COLORES.map((c) => {
-              const esBotonGoma = c.toLowerCase() === '#ffffff';
-              const seleccionado = colorActual.toLowerCase() === c.toLowerCase();
+              const esBotonGoma = c === '#ffffff';
+              const seleccionado = colorActual === c;
 
               return (
                 <button
@@ -601,13 +604,5 @@ function JuegoContenido() {
         </Modal>
       )}
     </main>
-  );
-}
-
-export default function JuegoPage() {
-  return (
-    <Suspense fallback={<div style={{ color: '#fff', padding: '2rem' }}>Cargando partida...</div>}>
-      <JuegoContenido />
-    </Suspense>
   );
 }

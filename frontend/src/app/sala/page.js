@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import useSocket from '@/hooks/useSocket';
 import Modal from '@/components/modal';
 import Boton from '@/components/boton';
 import './sala.css';
 
+// Variable simple para guardar la categoría elegida antes de entrar a la sala
+let categoriaElegida = 'TODAS';
+
 export default function SalaPage() {
   const router = useRouter();
   const { socket } = useSocket();
-  const categoriaRef = useRef('TODAS');
 
   const [usuario, setUsuario] = useState('');
   const [esAdmin, setEsAdmin] = useState(false);
@@ -23,95 +25,110 @@ export default function SalaPage() {
   const [creando, setCreando] = useState(false);
   const [entrando, setEntrando] = useState(false);
 
-  const getBackendUrl = () =>
-    typeof window !== 'undefined'
-      ? `http://${window.location.hostname}:4000`
-      : 'http://localhost:4000';
+  function getBackendUrl() {
+    if (typeof window !== 'undefined') {
+      return 'http://' + window.location.hostname + ':4000';
+    }
+    return 'http://localhost:4000';
+  }
 
+  // 1. Cargar datos del usuario desde localStorage y pedir categorías a MySQL
   useEffect(() => {
     const userLocal = localStorage.getItem('usuario') || 'JugadorAnonimo';
     setUsuario(userLocal);
 
-    const adminLocal = JSON.parse(localStorage.getItem('esAdmin') || 'false');
-    setEsAdmin(Boolean(adminLocal));
+    const adminLocal = localStorage.getItem('esAdmin');
+    if (adminLocal === '1' || adminLocal === 'true') {
+      setEsAdmin(true);
+    } else {
+      setEsAdmin(false);
+    }
 
-    fetch(`${getBackendUrl()}/api/categorias`)
+    fetch(getBackendUrl() + '/api/categorias')
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) setCategoriasLista(data);
+        if (Array.isArray(data)) {
+          setCategoriasLista(data);
+        }
       })
       .catch((err) => console.error('Error cargando categorías:', err));
   }, []);
 
+  // 2. Escuchar respuestas del servidor cuando se crea o se une a una sala
   useEffect(() => {
     if (!socket) return;
 
     const userLocal = localStorage.getItem('usuario') || 'JugadorAnonimo';
 
-    const onSalaCreada = ({ codigoSala }) => {
+    socket.on('sala_creada', (data) => {
       router.push(
-        `/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}&categoria=${categoriaRef.current}`
+        '/juego?codigo=' + data.codigoSala + '&usuario=' + userLocal + '&categoria=' + categoriaElegida
       );
-    };
+    });
 
-    const onUnidoExitoso = ({ codigoSala, categoria: catSala }) => {
+    socket.on('unido_exitoso', (data) => {
+      const catSala = data.categoria || 'TODAS';
       router.push(
-        `/juego?codigo=${codigoSala}&usuario=${encodeURIComponent(userLocal)}&categoria=${catSala || 'TODAS'}`
+        '/juego?codigo=' + data.codigoSala + '&usuario=' + userLocal + '&categoria=' + catSala
       );
-    };
-
-    socket.on('sala_creada', onSalaCreada);
-    socket.on('unido_exitoso', onUnidoExitoso);
+    });
 
     return () => {
-      socket.off('sala_creada', onSalaCreada);
-      socket.off('unido_exitoso', onUnidoExitoso);
+      socket.off('sala_creada');
+      socket.off('unido_exitoso');
     };
   }, [socket, router]);
 
-  const abrirRanking = () => {
-    fetch(`${getBackendUrl()}/api/ranking`)
+  function abrirRanking() {
+    fetch(getBackendUrl() + '/api/ranking')
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) setRanking(data);
+        if (Array.isArray(data)) {
+          setRanking(data);
+        }
         setMostrarRanking(true);
       })
       .catch((err) => console.error('Error cargando ranking:', err));
-  };
+  }
 
-  const handleCrearSala = (e) => {
+  function handleCrearSala(e) {
     e.preventDefault();
     if (!socket) return;
     setCreando(true);
-    categoriaRef.current = categoria;
+    categoriaElegida = categoria;
 
-    const catObj = categoriasLista.find((c) => String(c.id_categoria) === String(categoria));
-    const categoriaNombre = catObj ? catObj.nombre : 'TODAS';
+    // Buscamos el nombre de la categoría elegida con un ciclo for común
+    let categoriaNombre = 'TODAS';
+    for (let i = 0; i < categoriasLista.length; i++) {
+      if (String(categoriasLista[i].id_categoria) === String(categoria)) {
+        categoriaNombre = categoriasLista[i].nombre;
+      }
+    }
 
     socket.emit('crear_sala', {
-      nombreSala,
-      usuario,
-      categoria,
-      categoriaNombre,
+      nombreSala: nombreSala,
+      usuario: usuario,
+      categoria: categoria,
+      categoriaNombre: categoriaNombre,
     });
-  };
+  }
 
-  const handleUnirseSala = (e) => {
+  function handleUnirseSala(e) {
     e.preventDefault();
     if (!codigoIngreso || !socket) return;
     setEntrando(true);
 
     socket.emit('unirse_sala', {
       codigoSala: codigoIngreso.toUpperCase(),
-      usuario,
+      usuario: usuario,
     });
-  };
+  }
 
-  const handleCerrarSesion = () => {
+  function handleCerrarSesion() {
     localStorage.removeItem('usuario');
     localStorage.removeItem('esAdmin');
     router.push('/login');
-  };
+  }
 
   return (
     <main className="sala-container">
